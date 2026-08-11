@@ -21,14 +21,17 @@ param(
 
 $files = @("wall.py", "find_streams.py", "streams.toml")
 
-ssh -o BatchMode=yes $Host_ "mkdir -p ~/$Dest" | Out-Null
+# Mirrors the repo layout: files land in ~/ti_wall/wall/, not flat in ~/ti_wall.
+# wall.py reads streams.toml relative to its OWN path, so flattening would make
+# it read the wrong config -- or a stale duplicate.
+ssh -o BatchMode=yes $Host_ "mkdir -p ~/$Dest/wall" | Out-Null
 
 foreach ($name in $files) {
     $path = Join-Path $Src "wall\$name"
     if (-not (Test-Path $path)) { Write-Error "missing: $path"; continue }
 
     $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($path))
-    $b64 | ssh -o BatchMode=yes $Host_ "tr -cd 'A-Za-z0-9+/=' | base64 -D > ~/$Dest/$name"
+    $b64 | ssh -o BatchMode=yes $Host_ "tr -cd 'A-Za-z0-9+/=' | base64 -D > ~/$Dest/wall/$name"
 }
 
 # Verify sizes rather than trusting the transfer: a silently truncated wall.py
@@ -38,4 +41,4 @@ foreach ($name in $files) {
     Write-Output ("  {0,-18} {1,7}" -f $name, (Get-Item (Join-Path $Src "wall\$name")).Length)
 }
 Write-Output "remote:"
-ssh -o BatchMode=yes $Host_ "cd ~/$Dest && wc -c $($files -join ' ')"
+ssh -o BatchMode=yes $Host_ "cd ~/$Dest/wall && wc -c $($files -join ' ')"
