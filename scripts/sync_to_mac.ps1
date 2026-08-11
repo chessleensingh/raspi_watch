@@ -11,12 +11,16 @@
 #   2. It appends CRLF.
 # `tr -cd 'A-Za-z0-9+/='` keeps only base64 characters, dropping all three.
 #
+# Mostly superseded: the Mac now has a git clone at ~/raspi_watch, so
+# `git -C ~/raspi_watch pull` is the normal way to update it. Use this only to
+# push uncommitted work-in-progress you want to try on the TV before committing.
+#
 # Usage:  .\scripts\sync_to_mac.ps1
 
 param(
     [string]$Src  = (Split-Path $PSScriptRoot -Parent),
     [string]$Host_ = "mac-ti",
-    [string]$Dest = "ti_wall"
+    [string]$Dest = "raspi_watch"
 )
 
 $files = @("wall.py", "find_streams.py", "streams.toml")

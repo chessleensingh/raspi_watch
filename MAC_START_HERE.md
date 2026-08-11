@@ -1,9 +1,12 @@
 # Read this first — instructions for the agent on the Mac
 
 You are on `macbook-pro` (Intel i9-9880H, macOS 15.7.7), user `sachleensingh`.
-This directory is `~/ti_wall`. Your job is the **video wall** half of a two-part
-TI 2026 viewing setup. The scoreboard half runs on a separate Windows machine and
-needs nothing from you.
+This directory is `~/raspi_watch`, a git clone of
+<https://github.com/chessleensingh/raspi_watch> (public). Update it with
+`git -C ~/raspi_watch pull`.
+
+Your job is the **video wall** half of a two-part TI 2026 viewing setup. The
+scoreboard half runs on a separate Windows machine and needs nothing from you.
 
 TI 2026 group stage: **Aug 13–16, 2026**.
 
@@ -92,10 +95,6 @@ that restarts a stream to change which one is audible.
 
 ## Source of truth
 
-The canonical repo is <https://github.com/chessleensingh/raspi_watch> (private).
-This machine's GitHub token is expired, so it cannot clone yet — files here were
-copied over SSH instead. To enable `git pull` later:
-
-```sh
-gh auth login -h github.com
-```
+<https://github.com/chessleensingh/raspi_watch> — public, so `git pull` works
+here with no authentication. (Pushing would still need credentials; this
+machine's `gh` token is expired. Read-only is all you need.)
