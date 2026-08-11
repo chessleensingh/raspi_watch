@@ -1,0 +1,29 @@
+# Copy to config.toml and fill in. config.toml is gitignored because it holds
+# your API key. You can also skip the file entirely and set STEAM_API_KEY in the
+# environment, which takes precedence.
+
+[steam]
+# Free from https://steamcommunity.com/dev/apikey
+api_key = ""
+
+[scoreboard]
+# TI's league id. Leave at 0 to show every live league game, then run
+#   python scripts/find_league.py
+# while TI is live to find the real id and paste it here.
+league_id = 0
+
+# How often to hit Valve's API. Independent of the display delay below.
+poll_interval_seconds = 15.0
+
+# THE IMPORTANT ONE. Valve's API is live; the broadcast is 2-5 minutes behind
+# it. Without this the scoreboard spoils every fight before you see it.
+# Adjustable live from the page - tune it during the first game, then leave it.
+default_delay_seconds = 120.0
+
+# How much history to keep. Must exceed the largest delay you'll dial in.
+retention_seconds = 900.0
+
+[server]
+# 0.0.0.0 so you can open the scoreboard from a phone or the Pi on your LAN.
+host = "0.0.0.0"
+port = 8000

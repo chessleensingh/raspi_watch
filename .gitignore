@@ -1,0 +1,12 @@
+# config.toml holds a Steam Web API key. Keep it out of version control.
+# Use config.example.toml as the committed template, or set STEAM_API_KEY
+# in the environment instead (it takes precedence over the file).
+config.toml
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+scoreboard/.hero_cache.json

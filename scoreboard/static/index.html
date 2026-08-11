@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TI Scoreboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header id="bar">
+    <div class="delay-control">
+      <button id="delay-down" title="Show older data">&minus;15s</button>
+      <div class="delay-readout">
+        <span id="delay-value">--</span>
+        <small>broadcast delay</small>
+      </div>
+      <button id="delay-up" title="Show newer data">+15s</button>
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <label class="toggle">
+      <input type="checkbox" id="draft-toggle">
+      <span>Drafts</span>
+    </label>
+  </header>
+
+  <main id="grid" class="grid"></main>
+
+  <noscript>This scoreboard needs JavaScript.</noscript>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+# Scoreboard only. The wall needs no Python packages - just mpv, yt-dlp and
+# streamlink from Homebrew.
+flask>=2.3
+requests>=2.31
+
+# Dev
+pytest>=7.0

@@ -1,0 +1,207 @@
+/* Sized to be read across a table, not from desk distance.
+   Dark-only on purpose: this runs in a dark room next to a projector. */
+
+:root {
+  --bg: #0d0f13;
+  --tile: #171b22;
+  --tile-edge: #262c36;
+  --text: #eef1f6;
+  --dim: #8b94a3;
+  --radiant: #5ec36a;
+  --dire: #d6484a;
+  --warn: #e0a63c;
+  --accent: #6ea8fe;
+
+  /* Everything scales off this, so one number retunes the whole page for a
+     different screen size. */
+  --unit: clamp(11px, 1.35vw, 22px);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-variant-numeric: tabular-nums;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---- top bar ---- */
+
+#bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--unit);
+  padding: calc(var(--unit) * 0.5) var(--unit);
+  background: #0a0c10;
+  border-bottom: 1px solid var(--tile-edge);
+  flex: 0 0 auto;
+}
+
+.delay-control {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--unit) * 0.5);
+}
+
+.delay-control button {
+  background: var(--tile);
+  color: var(--text);
+  border: 1px solid var(--tile-edge);
+  border-radius: 6px;
+  padding: calc(var(--unit) * 0.35) calc(var(--unit) * 0.7);
+  font-size: calc(var(--unit) * 0.95);
+  font-weight: 600;
+  cursor: pointer;
+}
+.delay-control button:hover { border-color: var(--accent); }
+.delay-control button:active { transform: translateY(1px); }
+
+.delay-readout { text-align: center; min-width: 6ch; }
+#delay-value { display: block; font-size: calc(var(--unit) * 1.5); font-weight: 700; }
+.delay-readout small { color: var(--dim); font-size: calc(var(--unit) * 0.62); }
+
+.status { font-size: calc(var(--unit) * 0.85); color: var(--dim); text-align: center; }
+.status.warn { color: var(--warn); font-weight: 600; }
+.status.error { color: var(--dire); font-weight: 600; }
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--unit) * 0.4);
+  color: var(--dim);
+  font-size: calc(var(--unit) * 0.85);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ---- grid ---- */
+
+.grid {
+  flex: 1 1 auto;
+  display: grid;
+  gap: calc(var(--unit) * 0.6);
+  padding: calc(var(--unit) * 0.6);
+  /* Handles 1-6 live games rather than assuming exactly four. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26em), 1fr));
+  grid-auto-rows: 1fr;
+  min-height: 0;
+}
+
+.tile {
+  background: var(--tile);
+  border: 1px solid var(--tile-edge);
+  border-radius: calc(var(--unit) * 0.5);
+  padding: calc(var(--unit) * 0.7);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: calc(var(--unit) * 0.4);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tile.pregame { opacity: 0.72; }
+
+.teams {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: calc(var(--unit) * 0.4);
+}
+
+.team-name {
+  font-size: calc(var(--unit) * 1.05);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.team-name.radiant { color: var(--radiant); }
+.team-name.dire { color: var(--dire); text-align: right; }
+
+.series {
+  font-size: calc(var(--unit) * 0.9);
+  color: var(--dim);
+  background: #0a0c10;
+  border-radius: 4px;
+  padding: 2px calc(var(--unit) * 0.45);
+  white-space: nowrap;
+}
+
+/* The single biggest thing on the tile. */
+.score {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: baseline;
+  gap: calc(var(--unit) * 0.3);
+  font-size: calc(var(--unit) * 3.1);
+  font-weight: 800;
+  line-height: 1;
+}
+.score .radiant { color: var(--radiant); text-align: right; }
+.score .dire { color: var(--dire); text-align: left; }
+.score .clock {
+  font-size: calc(var(--unit) * 1.15);
+  font-weight: 600;
+  color: var(--dim);
+  padding: 0 calc(var(--unit) * 0.5);
+}
+
+/* ---- net worth ---- */
+
+.networth { display: flex; flex-direction: column; gap: 3px; }
+
+.networth-bar {
+  position: relative;
+  height: calc(var(--unit) * 0.55);
+  background: #0a0c10;
+  border-radius: 999px;
+  overflow: hidden;
+}
+/* Fill grows from the centre toward whichever side is ahead. */
+.networth-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  transition: left 0.4s ease, right 0.4s ease;
+}
+.networth-fill.radiant { background: var(--radiant); right: 50%; }
+.networth-fill.dire { background: var(--dire); left: 50%; }
+
+.networth-label {
+  font-size: calc(var(--unit) * 0.78);
+  color: var(--dim);
+  text-align: center;
+}
+.networth-label b.radiant { color: var(--radiant); }
+.networth-label b.dire { color: var(--dire); }
+
+/* ---- draft ---- */
+
+.draft { display: flex; justify-content: space-between; gap: calc(var(--unit) * 0.3); }
+.draft-side { display: flex; gap: 2px; }
+.draft img {
+  width: calc(var(--unit) * 2.1);
+  height: auto;
+  border-radius: 3px;
+  background: #0a0c10;
+}
+.draft-side.dire { flex-direction: row-reverse; }
+
+.empty {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dim);
+  font-size: calc(var(--unit) * 1.2);
+  text-align: center;
+  padding: var(--unit);
+}

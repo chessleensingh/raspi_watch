@@ -1,0 +1,151 @@
+{
+  "result": {
+    "games": [
+      {
+        "match_id": 8123456789,
+        "lobby_id": 27459812345,
+        "league_id": 18324,
+        "spectators": 152340,
+        "series_id": 441,
+        "game_number": 2,
+        "stream_delay_s": 120,
+        "radiant_series_wins": 1,
+        "dire_series_wins": 0,
+        "series_type": 1,
+        "radiant_team": {
+          "team_name": "Team Spirit",
+          "team_id": 7119388,
+          "team_logo": 1129452136570313216,
+          "complete": true
+        },
+        "dire_team": {
+          "team_name": "Gaimin Gladiators",
+          "team_id": 8261500,
+          "team_logo": 1129452136570313217,
+          "complete": true
+        },
+        "scoreboard": {
+          "duration": 2115.6376953125,
+          "roshan_respawn_timer": 0,
+          "radiant": {
+            "score": 23,
+            "tower_state": 1978,
+            "barracks_state": 63,
+            "picks": [
+              {"hero_id": 1}, {"hero_id": 8}, {"hero_id": 26},
+              {"hero_id": 74}, {"hero_id": 114}
+            ],
+            "bans": [
+              {"hero_id": 41}, {"hero_id": 86}, {"hero_id": 12}
+            ],
+            "players": [
+              {"account_id": 111, "player_slot": 0, "hero_id": 1, "net_worth": 21450},
+              {"account_id": 112, "player_slot": 1, "hero_id": 8, "net_worth": 17300},
+              {"account_id": 113, "player_slot": 2, "hero_id": 26, "net_worth": 14100},
+              {"account_id": 114, "player_slot": 3, "hero_id": 74, "net_worth": 11250},
+              {"account_id": 115, "player_slot": 4, "hero_id": 114, "net_worth": 9900}
+            ]
+          },
+          "dire": {
+            "score": 17,
+            "tower_state": 1954,
+            "barracks_state": 51,
+            "picks": [
+              {"hero_id": 44}, {"hero_id": 53}, {"hero_id": 31},
+              {"hero_id": 96}, {"hero_id": 87}
+            ],
+            "bans": [
+              {"hero_id": 39}, {"hero_id": 63}, {"hero_id": 22}
+            ],
+            "players": [
+              {"account_id": 211, "player_slot": 128, "hero_id": 44, "net_worth": 18600},
+              {"account_id": 212, "player_slot": 129, "hero_id": 53, "net_worth": 15400},
+              {"account_id": 213, "player_slot": 130, "hero_id": 31, "net_worth": 12800},
+              {"account_id": 214, "player_slot": 131, "hero_id": 96, "net_worth": 10050},
+              {"account_id": 215, "player_slot": 132, "hero_id": 87, "net_worth": 8300}
+            ]
+          }
+        }
+      },
+      {
+        "match_id": 8123456790,
+        "lobby_id": 27459812346,
+        "league_id": 18324,
+        "spectators": 48210,
+        "series_id": 442,
+        "game_number": 1,
+        "stream_delay_s": 120,
+        "radiant_series_wins": 0,
+        "dire_series_wins": 0,
+        "series_type": 1,
+        "radiant_team": {
+          "team_name": "Xtreme Gaming",
+          "team_id": 8261648,
+          "team_logo": 1129452136570313218,
+          "complete": true
+        },
+        "dire_team": {
+          "team_name": "Tundra Esports",
+          "team_id": 8291895,
+          "team_logo": 1129452136570313219,
+          "complete": true
+        }
+      },
+      {
+        "match_id": 8123456791,
+        "lobby_id": 27459812347,
+        "league_id": 18324,
+        "spectators": 12,
+        "series_id": 443,
+        "game_number": 1,
+        "radiant_series_wins": 0,
+        "dire_series_wins": 2,
+        "series_type": 1,
+        "dire_team": {
+          "team_name": "Nigma Galaxy",
+          "team_id": 7554697,
+          "team_logo": 1129452136570313220,
+          "complete": true
+        },
+        "scoreboard": {
+          "duration": 61.25,
+          "roshan_respawn_timer": 0,
+          "radiant": {
+            "score": 0,
+            "tower_state": 2047,
+            "barracks_state": 63,
+            "picks": [],
+            "bans": [],
+            "players": [
+              {"account_id": 311, "player_slot": 0, "hero_id": 5, "net_worth": 625}
+            ]
+          },
+          "dire": {
+            "score": 1,
+            "tower_state": 2047,
+            "barracks_state": 63,
+            "players": [
+              {"account_id": 411, "player_slot": 128, "hero_id": 9, "net_worth": 780}
+            ]
+          }
+        }
+      },
+      {
+        "match_id": 8123456792,
+        "lobby_id": 27459812348,
+        "league_id": 99999,
+        "spectators": 300,
+        "radiant_series_wins": 0,
+        "dire_series_wins": 0,
+        "series_type": 0,
+        "radiant_team": {"team_name": "Some Qualifier Team", "team_id": 1, "team_logo": 2, "complete": true},
+        "dire_team": {"team_name": "Another Team", "team_id": 3, "team_logo": 4, "complete": true},
+        "scoreboard": {
+          "duration": 500.0,
+          "radiant": {"score": 3, "tower_state": 2047, "barracks_state": 63, "picks": [], "bans": [], "players": []},
+          "dire": {"score": 5, "tower_state": 2047, "barracks_state": 63, "picks": [], "bans": [], "players": []}
+        }
+      }
+    ]
+  }
+}
