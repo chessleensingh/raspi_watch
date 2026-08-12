@@ -4,6 +4,8 @@ Spawning players needs a real display, so that half is verified by hand with
 --dry-run and a live run on the Mac.
 """
 
+import sys
+
 import pytest
 
 from wall.wall import (
@@ -252,3 +254,49 @@ def test_youtube_tiles_also_respect_the_chosen_screen():
         ytdl_format="best", screen_index=1,
     )
     assert "--screen=1" in cmd
+
+
+# ---------------------------------------------------------------------------
+# The interactive key loop
+#
+# These were the gap that let a NameError sit in main() while all 64 other
+# tests passed: nothing exercised the loop, so the crash only showed up by
+# pressing a key on the TV.
+# ---------------------------------------------------------------------------
+
+def run_key_loop(monkeypatch, keys, streams=("a", "b", "c", "d")):
+    """Drive main()'s loop over `keys`, spawning nothing. Returns tiles unmuted."""
+    from wall import wall as W
+
+    audio = []
+    monkeypatch.setattr(W, "load_config", lambda *a, **k: W.WallConfig(
+        streams=list(streams), quality="best", ytdl_format="",
+        screen=(1920, 1080), screen_index=1,
+    ))
+    monkeypatch.setattr(W.Wall, "start_all", lambda self: None)
+    monkeypatch.setattr(W.Wall, "stop_all", lambda self: None)
+    monkeypatch.setattr(W.Wall, "respawn_dead", lambda self: None)
+    monkeypatch.setattr(W.Wall, "set_audio", lambda self, i: audio.append(i))
+    monkeypatch.setattr(W, "read_key", lambda: next(pending, "q"))
+    monkeypatch.setattr(W.sys, "argv", ["wall.py"])
+    # main() refuses to start if mpv/streamlink are missing. They are absent on
+    # the Windows dev box, so point the lookup at an executable that exists
+    # everywhere - otherwise these tests only pass on the Mac.
+    monkeypatch.setattr(W.shutil, "which", lambda name: sys.executable)
+
+    pending = iter(keys)
+    assert W.main() == 0
+    return audio
+
+
+def test_number_keys_move_the_audio(monkeypatch):
+    assert run_key_loop(monkeypatch, ["1", "3", "q"]) == [0, 2]
+
+
+def test_poll_timeout_is_not_treated_as_a_keypress(monkeypatch):
+    """read_key() returns "" on timeout, and "" is a substring of every string."""
+    assert run_key_loop(monkeypatch, ["", "", "q"]) == []
+
+
+def test_keys_beyond_the_configured_tiles_are_ignored(monkeypatch):
+    assert run_key_loop(monkeypatch, ["1", "3", "q"], streams=("a", "b")) == [0]

@@ -47,7 +47,7 @@ daily**. The `@dota2/live` URL only ever resolves to one of them, so it cannot
 fill all four tiles.
 
 ```sh
-cd ~/ti_wall
+cd ~/raspi_watch
 /usr/local/bin/python3.12 wall/find_streams.py            # official Dota 2 channel
 /usr/local/bin/python3.12 wall/find_streams.py --twitch   # or probe Twitch names
 ```
@@ -60,7 +60,7 @@ current entries are placeholders.
 Then run it from a Terminal on the Mac:
 
 ```sh
-cd ~/ti_wall && /usr/local/bin/python3.12 wall/wall.py
+cd ~/raspi_watch && /usr/local/bin/python3.12 wall/wall.py
 ```
 
 Keys: `1`–`4` move audio (instant), `5` fullscreen, `r` respawn dead tiles,

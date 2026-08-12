@@ -1,6 +1,7 @@
-"""Four Twitch streams tiled 2x2, with instant audio switching.
+"""Four live streams tiled 2x2, with instant audio switching.
 
-Runs on the Mac. Each tile is `streamlink` feeding an `mpv` window placed with
+Runs on the Mac. YouTube tiles are an `mpv` window driving yt-dlp directly;
+Twitch tiles are `streamlink` feeding one. Either way the window is placed with
 --geometry. All four start muted; pressing 1-4 unmutes one and mutes the rest by
 writing a single JSON line to that mpv's IPC socket.
 
@@ -413,8 +414,6 @@ def main() -> int:
     elif config.screen:
         screen = config.screen
         screen_index = args.screen if args.screen is not None else (config.screen_index or 0)
-    elif args.dry_run:
-        screen, screen_index = FALLBACK_SCREEN, 0
     else:
         screen_index, screen, detected_note = detect_display()
         if args.screen is not None:
@@ -462,7 +461,9 @@ def main() -> int:
                 wall.respawn_dead()
                 continue
 
-            if key in "1234"[:len(channels)]:
+            # `key` is "" when the read timed out; guard it, because "" is a
+            # substring of every string and would match the digit test below.
+            if key and key in "1234"[:len(config.streams)]:
                 wall.set_audio(int(key) - 1)
             elif key == "5":
                 wall.toggle_fullscreen()

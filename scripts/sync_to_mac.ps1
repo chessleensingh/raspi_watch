@@ -25,7 +25,7 @@ param(
 
 $files = @("wall.py", "find_streams.py", "streams.toml")
 
-# Mirrors the repo layout: files land in ~/ti_wall/wall/, not flat in ~/ti_wall.
+# Mirrors the repo layout: files land in ~/raspi_watch/wall/, not flat in ~/raspi_watch.
 # wall.py reads streams.toml relative to its OWN path, so flattening would make
 # it read the wrong config -- or a stale duplicate.
 ssh -o BatchMode=yes $Host_ "mkdir -p ~/$Dest/wall" | Out-Null

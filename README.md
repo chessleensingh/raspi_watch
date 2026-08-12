@@ -43,9 +43,9 @@ morning:
 
 ```sh
 ssh mac-ti
-cd ~/ti_wall
-/usr/local/bin/python3.12 find_streams.py          # official Dota 2 channel
-/usr/local/bin/python3.12 find_streams.py --twitch # or probe Twitch names
+cd ~/raspi_watch
+/usr/local/bin/python3.12 wall/find_streams.py          # official Dota 2 channel
+/usr/local/bin/python3.12 wall/find_streams.py --twitch # or probe Twitch names
 ```
 
 It prints a ready-to-paste `streams = [...]` block. Put it in `wall/streams.toml`,
@@ -58,7 +58,7 @@ then push and run:
 ```sh
 # in a Terminal ON THE MAC (hotkeys need a real terminal, and the windows need
 # a real desktop session — a plain non-interactive ssh command won't do)
-cd ~/ti_wall && /usr/local/bin/python3.12 wall.py
+cd ~/raspi_watch && /usr/local/bin/python3.12 wall/wall.py
 ```
 
 ### Keys
@@ -132,7 +132,7 @@ since the delay is a client-side setting.
 ## Tests
 
 ```powershell
-python -m pytest tests/ -q     # 64 tests, no network needed
+python -m pytest tests/ -q     # 67 tests, no network needed
 ```
 
 Everything is tested against a recorded fixture, including the cases that
