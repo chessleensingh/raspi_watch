@@ -28,7 +28,7 @@ import subprocess
 import sys
 import time
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 CONFIG_PATH = Path(__file__).parent / "streams.toml"
@@ -124,8 +124,11 @@ def build_command(entry: str, quality: str, geometry: Geometry, index: int,
         cmd = [mpv_bin, entry, *options]
         if ytdl_format:
             cmd.append(f"--ytdl-format={ytdl_format}")
-        # Live streams should start at the live edge, not the DVR buffer start.
-        cmd.append("--ytdl-raw-options=live-from-start=")
+        # Live streams must start at the live edge, not the DVR buffer start.
+        # `live-from-start` does the opposite: yt-dlp hands mpv an EDL of DVR
+        # segments that mpv cannot open ("No video or audio streams selected"),
+        # so every tile dies about four seconds in and respawns forever.
+        cmd.append("--ytdl-raw-options=no-live-from-start=")
         return cmd
 
     target = entry if entry.startswith("http") else f"twitch.tv/{entry}"
@@ -151,6 +154,7 @@ class Display:
     width: int
     height: int
     retina: bool
+    mirrored: bool = False
 
     @property
     def logical_size(self) -> tuple[int, int]:
@@ -185,7 +189,24 @@ def parse_displays(system_profiler_text: str) -> list[Display]:
                 height=int(match.group(2)),
                 retina="retina" in match.group(3).lower(),
             ))
+            continue
+
+        # "Mirror: On" comes after the Resolution line inside the same block,
+        # so it lands on the display we most recently appended.
+        if displays and re.fullmatch(r"Mirror:\s*On", stripped):
+            displays[-1] = replace(displays[-1], mirrored=True)
+
     return displays
+
+
+def mirroring_is_on(displays: list[Display]) -> bool:
+    """True when macOS is mirroring, which collapses every panel into one screen.
+
+    This matters because mpv indexes real screens: with mirroring on there is
+    only ever `--screen=0`, and asking for `--screen=1` gets you
+    "Screen ID 1 does not exist, falling back to current device".
+    """
+    return any(d.mirrored for d in displays)
 
 
 def choose_display(displays: list[Display]) -> tuple[int, Display] | None:
@@ -218,11 +239,22 @@ def detect_display() -> tuple[int, tuple[int, int], str]:
     except (OSError, subprocess.SubprocessError):
         return 0, FALLBACK_SCREEN, "detection failed, assuming 1920x1080"
 
-    chosen = choose_display(parse_displays(out))
+    displays = parse_displays(out)
+    chosen = choose_display(displays)
     if chosen is None:
         return 0, FALLBACK_SCREEN, "no displays found, assuming 1920x1080"
 
     index, display = chosen
+
+    # Mirroring collapses every panel into a single screen, so screen 1 does not
+    # exist and mpv would silently fall back. The mirror master is what the TV
+    # shows, and that is screen 0.
+    if mirroring_is_on(displays):
+        return 0, display.logical_size, (
+            f"{display.name} (mirroring is ON, so there is only one screen; "
+            "switch to Extended Display to address the TV on its own)"
+        )
+
     note = " (Retina, using logical points)" if display.retina else ""
     return index, display.logical_size, f"{display.name}{note}"
 
@@ -403,6 +435,10 @@ def main() -> int:
             w, h = display.logical_size
             print(f"  --screen={index}  {display.name:<24} {w}x{h}"
                   f"{' (Retina)' if display.retina else '':<10} {marker}")
+        if mirroring_is_on(displays):
+            print("\n  Mirroring is ON, so mpv sees only --screen=0 no matter what\n"
+                  "  this list says. Switch to Extended Display to address the TV\n"
+                  "  separately from the laptop panel.")
         return 0
 
     config = load_config()

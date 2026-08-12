@@ -14,6 +14,7 @@ from wall.wall import (
     build_command,
     choose_display,
     is_youtube,
+    mirroring_is_on,
     parse_displays,
     tile_geometry,
 )
@@ -300,3 +301,75 @@ def test_poll_timeout_is_not_treated_as_a_keypress(monkeypatch):
 
 def test_keys_beyond_the_configured_tiles_are_ignored(monkeypatch):
     assert run_key_loop(monkeypatch, ["1", "3", "q"], streams=("a", "b")) == [0]
+
+
+# ---------------------------------------------------------------------------
+# Live edge, not the DVR buffer
+#
+# `live-from-start` hands mpv an EDL of DVR segments it cannot open, so every
+# YouTube tile died ~4s in and respawned forever. Found in the dress rehearsal
+# on 2026-08-11; the flag had no test, so nothing caught it.
+# ---------------------------------------------------------------------------
+
+def test_youtube_tiles_start_at_the_live_edge():
+    cmd = yt_command()
+    raw = [a for a in cmd if a.startswith("--ytdl-raw-options=")]
+
+    assert raw == ["--ytdl-raw-options=no-live-from-start="]
+
+
+def test_the_dvr_buffer_option_is_never_passed():
+    """The bare form is the one that kills the tile - it must not come back."""
+    assert "--ytdl-raw-options=live-from-start=" not in yt_command()
+
+
+# ---------------------------------------------------------------------------
+# Display mirroring
+# ---------------------------------------------------------------------------
+
+MIRRORED_PROFILER = """
+Graphics/Displays:
+
+    Radeon Pro 560X:
+
+      Displays:
+        Color LCD:
+          Resolution: 2880 x 1800 Retina
+          Mirror: On
+          Mirror Status: Hardware Mirror
+        S2-TEK TV:
+          Resolution: 1920 x 1080 (1080p FHD - Full High Definition)
+          Main Display: Yes
+          Mirror: On
+          Mirror Status: Master Mirror
+"""
+
+
+def test_mirroring_is_read_off_the_profiler():
+    assert mirroring_is_on(parse_displays(MIRRORED_PROFILER))
+
+
+def test_extended_displays_are_not_reported_as_mirrored():
+    assert not mirroring_is_on(parse_displays(SYSTEM_PROFILER))
+
+
+def test_mirror_flag_does_not_disturb_the_parsed_geometry():
+    """The Mirror lines sit between blocks; they must not shift names or sizes."""
+    displays = parse_displays(MIRRORED_PROFILER)
+
+    assert [d.name for d in displays] == ["Color LCD", "S2-TEK TV"]
+    assert displays[0].logical_size == (1440, 900)
+    assert displays[1].logical_size == (1920, 1080)
+
+
+def test_mirrored_setup_falls_back_to_the_only_real_screen(monkeypatch):
+    """mpv indexes real screens: mirrored means screen 1 does not exist."""
+    from wall import wall as W
+
+    monkeypatch.setattr(W.subprocess, "run", lambda *a, **k: type(
+        "R", (), {"stdout": MIRRORED_PROFILER})())
+    index, size, note = W.detect_display()
+
+    assert index == 0
+    assert size == (1920, 1080)
+    assert "mirroring is ON" in note
