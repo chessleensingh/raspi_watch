@@ -10,7 +10,7 @@ Two independent halves that share no state:
 | **Wall** (`wall/`) | the Mac → TV/projector | four streams tiled 2x2, instant audio switching |
 | **Scoreboard** (`scoreboard/`) | this Windows box → small table screen | live scores for every game, held behind the broadcast |
 
-TI 2026 group stage: **Aug 13–16**.
+TI 2026 group stage: **Aug 13–16**. Main event: **Aug 20–23**.
 
 ---
 
@@ -44,11 +44,18 @@ brew install mpv yt-dlp streamlink
 
 Already installed and verified: mpv 0.41.0, yt-dlp 2026.07.04, streamlink 8.5.0.
 
-### Every day of the event
+### The four streams
 
-YouTube gives each concurrent stream its own video ID, and **those IDs change
-daily**. The `@channel/live` URL only ever resolves to one of them, so each
-morning:
+Valve's 2026-08-11 announcement named them, and the Twitch names hold for the
+whole event, so `wall/streams.toml` already has the real ones:
+`dota2ti`, `dota2ti_2`, `dota2ti_3`, `dota2ti_4` (English; `_cn`, `_ru`, `_es`
+variants follow the same A/B/C/D pattern). Nothing to do each morning.
+
+### Only if you use YouTube instead
+
+YouTube gets a single `youtube.com/dota2` link for all four, and each concurrent
+stream is its own video ID that **changes daily**. The `@channel/live` URL only
+ever resolves to one of them, so each morning:
 
 ```sh
 ssh mac-ti
@@ -94,14 +101,26 @@ python3.12 wall.py --screen 1        # force a display
 - Display auto-detection prefers an **external** display over the MacBook's own
   panel. Retina panels are converted to logical points — using their advertised
   pixel count puts three of the four tiles off-screen.
-- **Use YouTube, not Twitch.** Twitch injects ads into the stream itself, so
-  there is no client-side way to remove them — streamlink can only cut to a
-  lower-quality segment or stall while they play. YouTube has no equivalent
-  problem here, because the wall is not a browser: `yt-dlp` resolves the media
-  manifest directly and mpv plays that, so there is no player page and no ad
-  slot to fill. No ad blocker is involved or needed. Twitch entries still work
-  and are kept as a fallback if a broadcast is Twitch-only.
-- Fans too loud? Lower `ytdl_format` from `height<=?1080` to `720`.
+- **YouTube is the configured path, not Twitch.** Twitch injects ads into the
+  stream itself, so no client can strip them — streamlink can only cut to a
+  lower-quality segment or stall while they run. YouTube has no equivalent
+  problem here because the wall is not a browser: `yt-dlp` resolves the media
+  manifest and mpv plays that, so there is no player page and no ad slot. No ad
+  blocker is involved or needed. The cost is that YouTube video IDs change
+  daily; Twitch channel names don't. Twitch entries still work and the announced
+  channel names are kept in `streams.toml` as a fallback.
+- YouTube tiles pass `--ytdl-raw-options=no-live-from-start=` so they open at
+  the live edge. The opposite spelling makes yt-dlp build an EDL of DVR
+  segments that mpv cannot open, and every tile dies ~4s in and respawns
+  forever.
+- macOS **display mirroring** collapses the panel and the TV into a single
+  screen, so `--screen=1` stops existing. The wall detects this and falls back
+  to `--screen=0`; use Extended Display to drive the TV on its own.
+- Fans too loud? Measured on 2026-08-11: four tiles hold the Mac at a 29–41%
+  `CPU_Speed_Limit`, and **720p does not help** — same floor, it just takes ~4
+  minutes to get there instead of under 1. It runs fine throttled (0 respawns,
+  0 dropped frames over 47 minutes). If you change quality anyway, YouTube tiles
+  read `ytdl_format` and Twitch tiles read `quality`.
 
 ---
 
@@ -197,8 +216,10 @@ actually break parsers during a real tournament: a game mid-draft with no
 The two things tests can't cover, both needing the live event:
 
 1. Dialling the delay to match the broadcast.
-2. Sustained four-stream CPU/thermals on the Mac — watch it through one full
-   game before trusting it for a four-day event.
+2. Sustained four-stream CPU/thermals on the Mac — soaked for 47 minutes on
+   2026-08-11 against YouTube live streams (see `MAC_START_HERE.md`). Still
+   unverified against the real Twitch streams, which take a different code
+   path through streamlink.
 
 ---
 

@@ -22,11 +22,26 @@ import sys
 
 DEFAULT_CHANNELS = ["@dota2"]
 
-# Valve's naming has varied year to year; these are the historical patterns.
-TWITCH_CANDIDATES = [
-    "dota2ti", "dota2ti_a", "dota2ti_b", "dota2ti_c", "dota2ti_d",
+# The four English streams, confirmed by Valve's 2026-08-11 announcement
+# ("The International: Streams, Secret Shop, and More"). Unlike the YouTube
+# side these names are stable for the whole event, so the wall can just use
+# them directly and skip the daily video-ID hunt.
+TWITCH_ENGLISH = ["dota2ti", "dota2ti_2", "dota2ti_3", "dota2ti_4"]
+
+# Other languages, same A/B/C/D pattern.
+TWITCH_BY_LANGUAGE = {
+    "en": TWITCH_ENGLISH,
+    "cn": ["dota2ti_cn", "dota2ti_cn_2", "dota2ti_cn_3", "dota2ti_cn_4"],
+    "ru": ["dota2ti_ru", "dota2ti_ru_2", "dota2ti_ru_3", "dota2ti_ru_4"],
+    "es": ["dota2ti_es", "dota2ti_es_2", "dota2ti_es_3", "dota2ti_es_4"],
+}
+
+# Probed in order. The 2026 names first, then the shapes Valve used in earlier
+# years, in case they rename mid-event.
+TWITCH_CANDIDATES = TWITCH_ENGLISH + [
+    "dota2ti_a", "dota2ti_b", "dota2ti_c", "dota2ti_d",
     "dota2ti2", "dota2ti3", "dota2ti4",
-    "dota2ti_ru", "dota2",
+    "dota2",
 ]
 
 
@@ -119,11 +134,16 @@ def main() -> int:
                         help="YouTube channel (repeatable), e.g. @dota2")
     parser.add_argument("--twitch", action="store_true",
                         help="probe Twitch channel names instead of YouTube")
+    parser.add_argument("--language", choices=sorted(TWITCH_BY_LANGUAGE),
+                        help="with --twitch, probe one language's four streams "
+                             "(default: English, then older name shapes)")
     args = parser.parse_args()
 
     if args.twitch:
         print("Probing Twitch channels (this takes a moment)...\n")
-        live = probe_twitch(TWITCH_CANDIDATES)
+        candidates = (TWITCH_BY_LANGUAGE[args.language] if args.language
+                      else TWITCH_CANDIDATES)
+        live = probe_twitch(candidates)
         if not live:
             print("\nNothing live. TI 2026 group stage runs Aug 13-16.")
             return 0
