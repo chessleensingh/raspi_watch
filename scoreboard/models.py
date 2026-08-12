@@ -40,6 +40,10 @@ class Game:
     spectators: int
     duration: float | None
     """None while the game has not started; the scoreboard key is absent then."""
+    stream_delay: int | None
+    """Broadcast delay in seconds, straight from Valve. None when absent -- which
+    must not be read as zero, since zero would mean "show live data" and spoil
+    every fight. Observed values in the wild: 10, 120, 300."""
     series_type: int
     radiant: Side
     dire: Side
@@ -118,6 +122,7 @@ def parse_live_games(payload: dict, league_id: int | None) -> list[Game]:
                 lobby_id=raw.get("lobby_id"),
                 spectators=raw.get("spectators") or 0,
                 duration=board.get("duration") if board else None,
+                stream_delay=raw.get("stream_delay_s"),
                 series_type=raw.get("series_type") or 0,
                 radiant=_parse_side(raw, board, "radiant"),
                 dire=_parse_side(raw, board, "dire"),

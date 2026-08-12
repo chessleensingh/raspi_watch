@@ -103,6 +103,20 @@ def test_missing_picks_key_is_treated_as_empty(payload):
     assert game.dire.picks == ()
 
 
+def test_stream_delay_is_read_from_the_payload(payload):
+    """Valve tells us the broadcast delay, so the user should not have to guess."""
+    game = parse_live_games(payload, league_id=TI_LEAGUE_ID)[0]
+
+    assert game.stream_delay == 120
+
+
+def test_missing_stream_delay_is_none_not_zero(payload):
+    """Zero would mean 'no delay needed' and spoil every fight. Absent is absent."""
+    game = parse_live_games(payload, league_id=TI_LEAGUE_ID)[2]
+
+    assert game.stream_delay is None
+
+
 def test_empty_payload_is_not_an_error():
     assert parse_live_games({"result": {"games": []}}, league_id=TI_LEAGUE_ID) == []
     assert parse_live_games({"result": {}}, league_id=TI_LEAGUE_ID) == []

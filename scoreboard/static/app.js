@@ -25,6 +25,7 @@ function storedDelay() {
 
 const state = {
   delay: storedDelay(),
+  delayFromValve: false,
   showDrafts: localStorage.getItem("showDrafts") === "true",
   heroes: {},
 };
@@ -33,6 +34,7 @@ const el = {
   grid: document.getElementById("grid"),
   status: document.getElementById("status"),
   delayValue: document.getElementById("delay-value"),
+  delaySource: document.getElementById("delay-source"),
   delayUp: document.getElementById("delay-up"),
   delayDown: document.getElementById("delay-down"),
   draftToggle: document.getElementById("draft-toggle"),
@@ -46,6 +48,8 @@ function clampDelay(value) {
 
 function setDelay(seconds) {
   state.delay = clampDelay(seconds);
+  // Once you override it by hand it is no longer Valve's number.
+  state.delayFromValve = false;
   localStorage.setItem("delaySeconds", String(state.delay));
   renderDelay();
   refresh();
@@ -59,6 +63,9 @@ function renderDelay() {
   const m = Math.floor(state.delay / 60);
   const s = state.delay % 60;
   el.delayValue.textContent = m > 0 ? `${m}:${String(s).padStart(2, "0")}` : `${s}s`;
+  el.delaySource.textContent = state.delayFromValve
+    ? "delay (from Valve)"
+    : "broadcast delay";
 }
 
 /* "+15s" means "show me newer data", i.e. a SMALLER delay. Labelling these by
@@ -247,7 +254,12 @@ async function refresh() {
 
     const data = await res.json();
     if (state.delay === null) {
-      state.delay = clampDelay(data.delay_seconds);
+      /* Valve reports the actual broadcast delay per game, so prefer it over
+         the configured guess. This is the difference between the delay being
+         right from the first game and you discovering it by watching a kill
+         get spoiled. */
+      state.delay = clampDelay(data.suggested_delay ?? data.delay_seconds);
+      state.delayFromValve = data.suggested_delay != null;
       renderDelay();
     }
     render(data);

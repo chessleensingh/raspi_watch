@@ -123,9 +123,16 @@ def create_app(config: Config, source=None, heroes: HeroIndex | None = None,
             time.time() - poller.last_success if poller.last_success else None
         )
 
+        # Valve reports the broadcast delay per game. Take the largest: showing
+        # data older than necessary is harmless, showing it too early is the one
+        # thing this whole system exists to prevent. None when no game says.
+        reported = [g.stream_delay for g in result.games if g.stream_delay]
+        suggested_delay = max(reported) if reported else None
+
         return jsonify({
             "games": [g.to_dict() for g in result.games],
             "delay_seconds": delay,
+            "suggested_delay": suggested_delay,
             "warming_up": result.warming_up,
             "snapshot_age": result.snapshot_age,
             "league_id": config.league_id,

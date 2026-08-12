@@ -20,8 +20,17 @@ Valve's API is **live**. The broadcast is **2–5 minutes behind it**. Render th
 directly and the scoreboard tells you about a teamfight before you watch it.
 
 So the scoreboard buffers every poll and shows you the state from `N` seconds ago.
-`N` is adjustable from the page — tune it during the first game until a kill on
-screen and the tile ticking over happen together, then leave it alone.
+
+**`N` is set automatically.** Valve reports the broadcast delay per game in
+`stream_delay_s`, and the page adopts it — the readout says "from Valve" when it
+does. Observed values in the wild are 10, 120 and 300 seconds, so guessing a
+fixed number would have been wrong most of the time. Where several games
+disagree, the largest wins: showing data older than necessary is harmless,
+showing it too early is the one thing this exists to prevent.
+
+The `−15s` / `+15s` buttons still override it, and your choice is remembered.
+If the broadcast you're watching adds its own delay on top of Valve's, nudge it
+until a kill on screen and the tile ticking over happen together.
 
 ---
 

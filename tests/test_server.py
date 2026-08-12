@@ -138,6 +138,37 @@ def test_non_numeric_delay_is_a_400(client):
     assert response.status_code == 400
 
 
+def test_suggested_delay_comes_from_valves_reported_stream_delay(app, client, payload):
+    seed(app, delay_ago=200, payload=payload)
+
+    assert client.get("/api/games").get_json()["suggested_delay"] == 120
+
+
+def test_suggested_delay_takes_the_largest_across_games(app, client, payload):
+    """Erring older is harmless; erring newer spoils fights."""
+    payload["result"]["games"][0]["stream_delay_s"] = 300
+    seed(app, delay_ago=200, payload=payload)
+
+    assert client.get("/api/games").get_json()["suggested_delay"] == 300
+
+
+def test_suggested_delay_is_null_when_valve_does_not_say(app, client, payload):
+    for game in payload["result"]["games"]:
+        game.pop("stream_delay_s", None)
+    seed(app, delay_ago=200, payload=payload)
+
+    assert client.get("/api/games").get_json()["suggested_delay"] is None
+
+
+def test_zero_stream_delay_is_ignored_rather_than_trusted(app, client, payload):
+    """A reported 0 would disable the spoiler guard entirely; fall back instead."""
+    for game in payload["result"]["games"]:
+        game["stream_delay_s"] = 0
+    seed(app, delay_ago=200, payload=payload)
+
+    assert client.get("/api/games").get_json()["suggested_delay"] is None
+
+
 def test_heroes_endpoint_exposes_icons(client):
     data = client.get("/api/heroes").get_json()
 
