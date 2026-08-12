@@ -8,7 +8,8 @@
 
 param(
     [switch]$NoServer,
-    [int]$Port = 8000
+    [int]$Port = 8000,
+    [string]$Browser = ""
 )
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -35,9 +36,18 @@ if (-not $screen) {
 }
 $b = $screen.Bounds
 
-$browser = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-if (-not (Test-Path $browser)) { $browser = (Get-Command msedge, chrome -ErrorAction SilentlyContinue | Select-Object -First 1).Source }
-if (-not $browser) { Write-Error "No Edge or Chrome found."; exit 1 }
+# Brave first by preference. All of these are Chromium, so the flags below are
+# identical across them.
+$candidates = @(
+    "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+    "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\Application\brave.exe",
+    "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    "C:\Program Files\Google\Chrome\Application\chrome.exe"
+)
+if ($Browser) { $candidates = @($Browser) + $candidates }
+
+$browser = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+if (-not $browser) { Write-Error "No Brave, Edge or Chrome found."; exit 1 }
 
 # --app strips the browser chrome; --start-fullscreen then fills the display the
 # window was positioned on, so the taskbar stops clipping the bottom tiles.
@@ -49,5 +59,5 @@ Start-Process $browser -ArgumentList @(
     "--start-fullscreen"
 )
 
-Write-Output "Scoreboard opened on $($screen.DeviceName) ($($b.Width)x$($b.Height) at $($b.X),$($b.Y))"
+Write-Output "Scoreboard opened in $(Split-Path $browser -Leaf) on $($screen.DeviceName) ($($b.Width)x$($b.Height) at $($b.X),$($b.Y))"
 Write-Output "Press F11 in the window if it did not go fullscreen. Alt+F4 to close."

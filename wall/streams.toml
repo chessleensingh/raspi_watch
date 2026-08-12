@@ -34,7 +34,11 @@ streams = [
 # if the fans get loud.
 ytdl_format = "bestvideo[height<=?1080][fps<=?60]+bestaudio/best[height<=?1080]"
 
-# Twitch quality, tried left to right. Only used for Twitch entries.
+# Twitch quality, tried left to right. Only used for Twitch entries, which are
+# not the intended path here -- Twitch injects ads into the stream itself, and
+# streamlink can only skip them by cutting to a lower-quality segment or
+# stalling. YouTube via yt-dlp has no such problem. Kept working as a fallback
+# in case a broadcast is Twitch-only.
 quality = "1080p60,720p60,720p,best"
 
 [screen]

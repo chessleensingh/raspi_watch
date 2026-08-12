@@ -94,9 +94,13 @@ python3.12 wall.py --screen 1        # force a display
 - Display auto-detection prefers an **external** display over the MacBook's own
   panel. Retina panels are converted to logical points — using their advertised
   pixel count puts three of the four tiles off-screen.
-- YouTube entries go straight to mpv (which drives yt-dlp). Twitch entries go via
-  streamlink, which handles ads and low-latency mode far better. You can mix both
-  in one wall.
+- **Use YouTube, not Twitch.** Twitch injects ads into the stream itself, so
+  there is no client-side way to remove them — streamlink can only cut to a
+  lower-quality segment or stall while they play. YouTube has no equivalent
+  problem here, because the wall is not a browser: `yt-dlp` resolves the media
+  manifest directly and mpv plays that, so there is no player page and no ad
+  slot to fill. No ad blocker is involved or needed. Twitch entries still work
+  and are kept as a fallback if a broadcast is Twitch-only.
 - Fans too loud? Lower `ytdl_format` from `height<=?1080` to `720`.
 
 ---
@@ -126,6 +130,9 @@ That starts the server and opens the page fullscreen on the secondary display
 (falling back to the primary if there's only one). Use `-NoServer` if the server
 is already running. Fullscreen matters: in a normal window the taskbar clips the
 bottom row of tiles.
+
+Browser preference is Brave, then Edge, then Chrome — all Chromium, so the flags
+are identical. Override with `-Browser "C:\path\to\browser.exe"`.
 
 To run the server alone:
 
