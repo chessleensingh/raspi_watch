@@ -25,6 +25,32 @@ param(
 
 $files = @("wall.py", "find_streams.py", "streams.toml")
 
+# Refuse to write into a git checkout.
+#
+# This script writes CRLF (the files come from a Windows working tree), so even
+# byte-identical content shows up as a local modification on the Mac and blocks
+# the next `git pull`. Worse, it silently overwrites work committed there --
+# which is exactly what happened on 2026-08-12, clobbering two commits' worth of
+# the Mac's changes until they were recovered with git bundle.
+#
+# If the destination is a repo, `git pull` is the correct mechanism.
+$isRepo = ssh -o BatchMode=yes $Host_ "test -d ~/$Dest/.git && echo yes || echo no" 2>$null |
+          Where-Object { $_ -match '^(yes|no)$' } | Select-Object -First 1
+
+if ($isRepo -eq "yes") {
+    Write-Error @"
+~/$Dest on $Host_ is a git checkout. Do not sync into it -- this script writes
+CRLF and would both block `git pull` and overwrite anything committed there.
+
+Push your changes and pull them instead:
+    git push
+    ssh $Host_ "git -C ~/$Dest pull"
+
+To sync somewhere else anyway:  .\scripts\sync_to_mac.ps1 -Dest some_scratch_dir
+"@
+    exit 1
+}
+
 # Mirrors the repo layout: files land in ~/raspi_watch/wall/, not flat in ~/raspi_watch.
 # wall.py reads streams.toml relative to its OWN path, so flattening would make
 # it read the wrong config -- or a stale duplicate.
