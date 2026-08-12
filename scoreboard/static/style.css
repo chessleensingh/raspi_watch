@@ -12,9 +12,14 @@
   --warn: #e0a63c;
   --accent: #6ea8fe;
 
-  /* Everything scales off this, so one number retunes the whole page for a
-     different screen size. */
+  /* Base type scale for the header. app.js overrides --unit on .grid itself,
+     sizing tile type to the tile rather than the viewport. */
   --unit: clamp(11px, 1.35vw, 22px);
+
+  /* Kept off --unit on purpose: .grid's gap and padding must not depend on the
+     value app.js sets there, or measuring the gap to compute that value would
+     feed back into itself. */
+  --gap: clamp(6px, 0.7vw, 14px);
 }
 
 * { box-sizing: border-box; }
@@ -106,8 +111,8 @@ body {
 .grid {
   flex: 1 1 auto;
   display: grid;
-  gap: calc(var(--unit) * 0.6);
-  padding: calc(var(--unit) * 0.6);
+  gap: var(--gap);
+  padding: var(--gap);
   /* Column count is set explicitly by app.js from the number of live games.
      auto-fit was wrong here: on a wide screen it packed four games into a
      single 4-across row instead of the 2x2 the whole layout assumes, and on a
@@ -143,7 +148,9 @@ body {
 }
 
 .team-name {
-  font-size: calc(var(--unit) * 1.05);
+  /* Deliberately smaller than the score. Names only need to be identifiable at
+     a glance, and at parity with the score the longer org names truncate. */
+  font-size: calc(var(--unit) * 0.82);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;

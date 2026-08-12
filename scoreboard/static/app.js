@@ -199,9 +199,30 @@ function columnsFor(count) {
   return 4;
 }
 
+/* Scale the type off the tile, not the viewport.
+   Four games in a 2x2 gives tiles roughly four times the area of a nine-up
+   grid, so a viewport-based size left the TI layout looking tiny with acres of
+   empty tile around it. This makes the score as large as the tile can carry.
+   The two factors are the fraction of tile width and height one "unit" takes;
+   the smaller wins so text never overflows either axis. */
+function sizeToTiles(count) {
+  if (!count) return;
+  const cols = columnsFor(count);
+  const rows = Math.ceil(count / cols);
+  const style = getComputedStyle(el.grid);
+  const gap = parseFloat(style.gap) || 0;
+
+  const tileW = (el.grid.clientWidth - gap * (cols - 1)) / cols;
+  const tileH = (el.grid.clientHeight - gap * (rows - 1)) / rows;
+
+  const unit = Math.max(12, Math.min(tileW * 0.052, tileH * 0.105, 52));
+  el.grid.style.setProperty("--unit", `${unit.toFixed(1)}px`);
+}
+
 function render(data) {
   renderStatus(data);
   el.grid.style.setProperty("--cols", columnsFor(data.games.length));
+  sizeToTiles(data.games.length);
   el.grid.replaceChildren();
 
   if (!data.games.length) {
@@ -261,6 +282,12 @@ el.hardRefresh.addEventListener("click", async () => {
     // Offline or server down; reload anyway so the error state is visible.
   }
   location.replace(`${location.pathname}?r=${Date.now()}`);
+});
+
+// Going fullscreen or moving the window between displays changes the tile size.
+window.addEventListener("resize", () => {
+  const tiles = el.grid.childElementCount;
+  if (tiles) sizeToTiles(tiles);
 });
 
 renderDelay();
