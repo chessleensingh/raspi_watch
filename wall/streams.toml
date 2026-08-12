@@ -12,22 +12,32 @@
 # YouTube entries go straight to mpv (which drives yt-dlp). Twitch entries go
 # through streamlink.
 #
-# HEADS UP for YouTube: four concurrent TI streams are usually four separate
-# video IDs on the SAME channel, and those IDs change every day of the event.
-# The "@channel/live" form only ever resolves to one stream per channel, so it
-# cannot give you all four. Run this each morning to get the day's IDs:
+# Valve's 2026-08-11 announcement ("The International: Streams, Secret Shop,
+# and More") named the four English streams on Twitch, and unlike the YouTube
+# side those names are STABLE for the whole event. So the wall just uses them,
+# and there is no daily video-ID hunt to do.
+#
+#   Group stage  Aug 13-16      Main event  Aug 20-23
+#
+# HEADS UP if you switch to YouTube: Valve publishes only a single
+# youtube.com/dota2 "All Streams" link, and the four concurrent streams are
+# four separate video IDs on that one channel that CHANGE EVERY DAY. The
+# "@channel/live" form only resolves to one of them. So on YouTube, and only
+# then, run this each morning and paste what it prints:
 #
 #     python3 wall/find_streams.py
-#
-# TI 2026 group stage runs Aug 13-16. Valve had not published the secondary
-# channel names as of Aug 10, so these are placeholders - replace them.
 
 streams = [
-  "https://www.youtube.com/@dota2/live",
-  "",
-  "",
-  "",
+  "dota2ti",    # Stream A
+  "dota2ti_2",  # Stream B
+  "dota2ti_3",  # Stream C
+  "dota2ti_4",  # Stream D
 ]
+
+# Other languages, same A/B/C/D pattern:
+#   Chinese  dota2ti_cn, dota2ti_cn_2, dota2ti_cn_3, dota2ti_cn_4
+#   Russian  dota2ti_ru, dota2ti_ru_2, dota2ti_ru_3, dota2ti_ru_4
+#   Spanish  dota2ti_es, dota2ti_es_2, dota2ti_es_3, dota2ti_es_4
 
 # YouTube quality, passed to yt-dlp. Capped at 1080p60 - this Mac is an 8-core
 # i9 with VideoToolbox, so four of those is realistic. Drop the height to 720
