@@ -26,6 +26,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 import tomllib
 from dataclasses import dataclass
@@ -326,6 +327,91 @@ class Wall:
                     self.set_audio(index)
 
 
+# --------------------------------------------------------------------------
+# Remote control
+#
+# Lets the scoreboard on the other machine switch which tile has audio, so you
+# can tap the game you want on the table screen instead of reaching for the
+# keyboard. Deliberately tiny: the only state it can change is which tile is
+# unmuted, and which tile is fullscreen.
+# --------------------------------------------------------------------------
+
+CONTROL_PORT = 8777
+
+
+def make_control_handler(wall: "Wall"):
+    from http.server import BaseHTTPRequestHandler
+
+    class Handler(BaseHTTPRequestHandler):
+        def _send(self, code: int, payload: dict) -> None:
+            body = json.dumps(payload).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            # The scoreboard is served from a different origin (another machine).
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _status(self) -> dict:
+            return {
+                "active": wall.active,
+                "count": len(wall.streams),
+                "streams": [wall.label(i) for i in range(len(wall.streams))],
+            }
+
+        def do_OPTIONS(self):  # noqa: N802
+            self._send(200, {})
+
+        def do_GET(self):  # noqa: N802
+            if self.path.rstrip("/") == "/status":
+                self._send(200, self._status())
+            else:
+                self._send(404, {"error": "not found"})
+
+        def do_POST(self):  # noqa: N802
+            parts = self.path.strip("/").split("/")
+
+            if len(parts) == 2 and parts[0] == "audio":
+                try:
+                    index = int(parts[1])
+                except ValueError:
+                    return self._send(400, {"error": "tile must be a number"})
+                if not 0 <= index < len(wall.streams):
+                    return self._send(404, {"error": f"no tile {index}"})
+                wall.set_audio(index)
+                return self._send(200, self._status())
+
+            if self.path.rstrip("/") == "/fullscreen":
+                wall.toggle_fullscreen()
+                return self._send(200, self._status())
+
+            self._send(404, {"error": "not found"})
+
+        def log_message(self, *args):
+            # Silent: this shares a terminal with the key loop.
+            pass
+
+    return Handler
+
+
+def start_control_server(wall: "Wall", port: int, bind: str) -> threading.Thread | None:
+    from http.server import ThreadingHTTPServer
+
+    try:
+        server = ThreadingHTTPServer((bind, port), make_control_handler(wall))
+    except OSError as exc:
+        # Never fatal. The wall's own hotkeys still work without it.
+        print(f"remote control unavailable on {bind}:{port} ({exc})")
+        return None
+
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    print(f"remote control listening on {bind}:{port}")
+    return thread
+
+
 def read_key() -> str | None:
     """One keypress, unbuffered. Returns None if stdin isn't a terminal."""
     import select
@@ -391,6 +477,12 @@ def main() -> int:
     parser.add_argument("--screen", type=int, help="which display to use (0-based)")
     parser.add_argument("--list-displays", action="store_true",
                         help="show attached displays and their indices, then exit")
+    parser.add_argument("--control-port", type=int, default=CONTROL_PORT,
+                        help=f"port for scoreboard remote control (default {CONTROL_PORT})")
+    parser.add_argument("--control-bind", default="0.0.0.0",
+                        help="address to bind remote control to (default 0.0.0.0)")
+    parser.add_argument("--no-control", action="store_true",
+                        help="disable scoreboard remote control")
     args = parser.parse_args()
 
     if args.list_displays:
@@ -448,6 +540,10 @@ def main() -> int:
             raise SystemExit(f"{name} not found. Install with: brew install {name}")
 
     wall.start_all()
+
+    if not args.no_control:
+        start_control_server(wall, args.control_port, args.control_bind)
+
     print("\nkeys:  1-4 audio   5 fullscreen   r respawn dead tiles   q quit")
     print("streams take a few seconds to appear...\n")
 

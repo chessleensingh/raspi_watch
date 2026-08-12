@@ -86,6 +86,34 @@ Useful:
   one tile, and run it by hand. That isolates whether it's yt-dlp, mpv, or the
   wall's process management.
 
+## Remote control from the scoreboard
+
+`wall.py` starts a small HTTP server on port 8777 exposing `GET /status`,
+`POST /audio/<tile>` and `POST /fullscreen`, so the scoreboard on the Windows
+box can switch which stream has audio when a game is tapped. Disable with
+`--no-control`.
+
+**The macOS Application Firewall blocks it.** The firewall is enabled on this
+machine and only `/usr/bin/python3` is on its allow list, so inbound connections
+to `python3.12` are accepted and then instantly dropped — the Mac logs
+`OSError: [Errno 57] Socket is not connected` and the client sees a reset. This
+looks like a bug in the code and is not.
+
+Two fixes, in order of preference:
+
+1. **The Windows side runs an SSH tunnel** (`scripts/wall_tunnel.ps1`), which
+   forwards to `127.0.0.1` on this Mac and sidesteps the firewall entirely. This
+   is already how it is configured, and it leaves no port exposed.
+2. Allow the binary once:
+   ```sh
+   sudo /usr/libexec/ApplicationFirewall/socketfilterfw \
+        --add /usr/local/bin/python3.12 --unblockapp /usr/local/bin/python3.12
+   ```
+
+If you run `wall.py` from Terminal.app rather than over ssh, macOS may instead
+show a GUI prompt asking whether to accept incoming connections. Allowing it
+there has the same effect as option 2.
+
 ## Design constraint worth preserving
 
 The whole point of doing this natively rather than using multitwitch.tv is that

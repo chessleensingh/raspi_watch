@@ -142,6 +142,26 @@ Tiles are laid out by game count: 1 game fills the screen, 2–4 go in a 2x2,
 more spill into three columns. Four is the TI group-stage case and is what the
 sizing is tuned for. Verified on a 1440x900 secondary display.
 
+### Click a game to switch the wall's audio
+
+Tap a game on the table screen and the Mac moves its audio to that stream. Open
+the tunnel first and leave it running:
+
+```powershell
+.\scripts\wall_tunnel.ps1
+```
+
+The tile with audio is outlined, and the `▶ n` badge says which wall stream each
+game is on.
+
+**About that badge:** nothing in Valve's data says which stream is showing which
+match — no field connects a Twitch/YouTube URL to a `match_id`. So the mapping
+cannot be derived, only stated. It defaults to screen position, which is correct
+whenever `wall/streams.toml` is ordered the same way as the scoreboard. When it
+isn't, click the badge to cycle it; your choice is remembered per match.
+
+The wall being down never affects the scores — the click just reports an error.
+
 ### On screen
 
 - `−15s` / `+15s` adjust the delay (persisted in the browser)

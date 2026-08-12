@@ -42,6 +42,7 @@ def config():
         retention_seconds=900.0,
         host="127.0.0.1",
         port=8000,
+        wall_url="",
     )
 
 
@@ -167,6 +168,69 @@ def test_zero_stream_delay_is_ignored_rather_than_trusted(app, client, payload):
     seed(app, delay_ago=200, payload=payload)
 
     assert client.get("/api/games").get_json()["suggested_delay"] is None
+
+
+# ---- wall remote control ------------------------------------------------
+
+def test_wall_reports_disabled_when_no_url_configured(client):
+    assert client.get("/api/wall").get_json() == {"enabled": False}
+
+
+def test_clicking_a_tile_without_a_wall_is_a_clean_503(client):
+    response = client.post("/api/wall/audio/2")
+
+    assert response.status_code == 503
+    assert "wall" in response.get_json()["error"]
+
+
+def test_wall_audio_is_forwarded_to_the_wall(config, monkeypatch):
+    import scoreboard.server as server_module
+
+    configured = Config(**{**config.__dict__, "wall_url": "http://wall.test:8777"})
+    sent = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {"active": 2, "count": 4, "streams": ["a", "b", "c", "d"]}
+
+    def fake_post(url, timeout):
+        sent["url"] = url
+        return FakeResponse()
+
+    monkeypatch.setattr(server_module.requests, "post", fake_post)
+    app = create_app(configured, source=StubSource(payload={}),
+                     heroes=HeroIndex({}), start_poller=False)
+
+    response = app.test_client().post("/api/wall/audio/2")
+
+    assert sent["url"] == "http://wall.test:8777/audio/2"
+    assert response.get_json()["active"] == 2
+
+
+def test_wall_being_unreachable_does_not_break_the_scoreboard(config, monkeypatch, payload):
+    """The Mac may be off. The scores must keep working regardless."""
+    import scoreboard.server as server_module
+    import requests as requests_module
+
+    configured = Config(**{**config.__dict__, "wall_url": "http://wall.test:8777"})
+
+    def boom(*args, **kwargs):
+        raise requests_module.ConnectionError("no route to host")
+
+    monkeypatch.setattr(server_module.requests, "post", boom)
+    monkeypatch.setattr(server_module.requests, "get", boom)
+
+    app = create_app(configured, source=StubSource(payload=payload),
+                     heroes=HeroIndex({}), start_poller=False)
+    client = app.test_client()
+    app.config["buffer"].append(parse_live_games(payload, TI_LEAGUE_ID), timestamp=time.time())
+
+    assert client.post("/api/wall/audio/1").status_code == 502
+    assert client.get("/api/wall").status_code == 502
+    # The part that matters:
+    assert len(client.get("/api/games?delay=0").get_json()["games"]) == 3
 
 
 def test_heroes_endpoint_exposes_icons(client):

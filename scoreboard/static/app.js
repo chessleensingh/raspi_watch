@@ -26,6 +26,9 @@ function storedDelay() {
 const state = {
   delay: storedDelay(),
   delayFromValve: false,
+  wallEnabled: false,
+  wallCount: 4,
+  activeWallTile: null,
   showDrafts: localStorage.getItem("showDrafts") === "true",
   heroes: {},
 };
@@ -143,9 +146,72 @@ function networthRow(game) {
   return wrap;
 }
 
-function tile(game) {
+/* Which wall tile each game drives.
+ *
+ * Nothing in Valve's data identifies which Twitch/YouTube stream is showing a
+ * given match, so this mapping cannot be derived - it has to be stated. Keyed
+ * by match_id and remembered, defaulting to the game's position on screen,
+ * which is right whenever streams.toml is ordered the same way.
+ */
+function wallTileFor(game, position) {
+  const saved = JSON.parse(localStorage.getItem("wallMap") || "{}");
+  const count = Math.max(state.wallCount || 4, 1);
+  // Wrap: with league_id unset there can be more live games than wall tiles,
+  // and a default of "position" would point at a stream that does not exist.
+  return saved[game.match_id] ?? position % count;
+}
+
+function setWallTile(matchId, tile) {
+  const saved = JSON.parse(localStorage.getItem("wallMap") || "{}");
+  saved[matchId] = tile;
+  localStorage.setItem("wallMap", JSON.stringify(saved));
+}
+
+async function switchWallAudio(tile, node) {
+  if (!state.wallEnabled) return;
+  node.classList.add("switching");
+  try {
+    const res = await fetch(`/api/wall/audio/${tile}`, { method: "POST" });
+    if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+    state.activeWallTile = tile;
+    document.querySelectorAll(".tile").forEach((t) =>
+      t.classList.toggle("audio", Number(t.dataset.wallTile) === tile));
+  } catch (err) {
+    node.classList.add("failed");
+    el.status.textContent = `wall: ${err.message}`;
+    el.status.className = "status error";
+    setTimeout(() => node.classList.remove("failed"), 2000);
+  } finally {
+    node.classList.remove("switching");
+  }
+}
+
+function tile(game, position) {
   const node = document.createElement("article");
   node.className = "tile" + (game.in_progress ? "" : " pregame");
+
+  const wallTile = wallTileFor(game, position);
+  node.dataset.wallTile = wallTile;
+  if (state.wallEnabled) {
+    node.classList.add("clickable");
+    if (wallTile === state.activeWallTile) node.classList.add("audio");
+    node.title = `Click to move wall audio to stream ${wallTile + 1}`;
+    node.addEventListener("click", () => switchWallAudio(wallTile, node));
+
+    // The badge states the mapping and cycles it, so a wrong guess is one
+    // click to fix rather than a config edit and a restart.
+    const badge = document.createElement("button");
+    badge.className = "wall-badge";
+    badge.textContent = `▶ ${wallTile + 1}`;
+    badge.title = "Which wall stream this game is on. Click to change.";
+    badge.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const next = (wallTile + 1) % Math.max(state.wallCount || 4, 1);
+      setWallTile(game.match_id, next);
+      refresh();
+    });
+    node.appendChild(badge);
+  }
 
   const teams = document.createElement("div");
   teams.className = "teams";
@@ -242,7 +308,18 @@ function render(data) {
     return;
   }
 
-  for (const game of data.games) el.grid.appendChild(tile(game));
+  data.games.forEach((game, position) => el.grid.appendChild(tile(game, position)));
+}
+
+async function loadWallStatus() {
+  try {
+    const wall = await (await fetch("/api/wall")).json();
+    state.wallEnabled = Boolean(wall.enabled) && !wall.error;
+    state.wallCount = wall.count ?? 4;
+    state.activeWallTile = wall.active ?? null;
+  } catch {
+    state.wallEnabled = false;
+  }
 }
 
 async function refresh() {
@@ -303,5 +380,7 @@ window.addEventListener("resize", () => {
 });
 
 renderDelay();
-loadHeroes().then(refresh);
+Promise.all([loadHeroes(), loadWallStatus()]).then(refresh);
 setInterval(refresh, REFRESH_MS);
+// The wall can be started after the scoreboard, so keep checking for it.
+setInterval(loadWallStatus, 15000);

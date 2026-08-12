@@ -16,6 +16,7 @@ import threading
 import time
 from pathlib import Path
 
+import requests
 from flask import Flask, jsonify, request, send_from_directory
 
 from scoreboard.config import Config, load_config
@@ -108,6 +109,33 @@ def create_app(config: Config, source=None, heroes: HeroIndex | None = None,
     @app.get("/api/heroes")
     def api_heroes():
         return jsonify(heroes.to_dict())
+
+    # ---- wall remote control -------------------------------------------
+    # Proxied rather than called from the browser: it keeps the Mac's address
+    # in one config file, avoids CORS, and means the page works even where the
+    # browser cannot resolve the Mac's tailnet name.
+
+    @app.get("/api/wall")
+    def api_wall_status():
+        if not config.wall_url:
+            return jsonify({"enabled": False})
+        try:
+            response = requests.get(f"{config.wall_url}/status", timeout=3)
+            return jsonify({"enabled": True, **response.json()})
+        except (requests.RequestException, ValueError) as exc:
+            return jsonify({"enabled": True, "error": str(exc)}), 502
+
+    @app.post("/api/wall/audio/<int:tile>")
+    def api_wall_audio(tile: int):
+        if not config.wall_url:
+            return jsonify({"error": "no wall configured; set [wall] url"}), 503
+        try:
+            response = requests.post(f"{config.wall_url}/audio/{tile}", timeout=3)
+            return jsonify(response.json()), response.status_code
+        except (requests.RequestException, ValueError) as exc:
+            # The wall being down must never break the scoreboard.
+            log.warning("wall control failed: %s", exc)
+            return jsonify({"error": f"wall unreachable: {exc}"}), 502
 
     @app.get("/api/games")
     def api_games():
