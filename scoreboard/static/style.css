@@ -71,6 +71,12 @@ body {
 .status.warn { color: var(--warn); font-weight: 600; }
 .status.error { color: var(--dire); font-weight: 600; }
 
+.right-controls {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--unit) * 0.7);
+}
+
 .toggle {
   display: flex;
   align-items: center;
@@ -80,6 +86,20 @@ body {
   cursor: pointer;
   user-select: none;
 }
+
+#hard-refresh {
+  background: var(--tile);
+  color: var(--dim);
+  border: 1px solid var(--tile-edge);
+  border-radius: 6px;
+  padding: calc(var(--unit) * 0.35) calc(var(--unit) * 0.6);
+  font-size: calc(var(--unit) * 0.8);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#hard-refresh:hover { border-color: var(--accent); color: var(--text); }
+#hard-refresh:active { transform: translateY(1px); }
 
 /* ---- grid ---- */
 

@@ -9,14 +9,22 @@ const REFRESH_MS = 3000;
 const DELAY_STEP = 15;
 const MAX_DELAY = 900;
 
-const stored = localStorage.getItem("delaySeconds");
-
-const state = {
+function storedDelay() {
   /* null means "no choice saved in this browser yet" - the first request omits
      the delay parameter so the server's configured default applies, and we
      adopt whatever it returns. Hardcoding 120 here made
-     default_delay_seconds in config.toml silently do nothing. */
-  delay: stored === null ? null : clampDelay(Number(stored)),
+     default_delay_seconds in config.toml silently do nothing.
+
+     Anything unparseable counts as unset: Number("") is 0, so a blank entry
+     would otherwise pin the delay to zero and quietly spoil every fight. */
+  const raw = localStorage.getItem("delaySeconds");
+  if (raw === null || raw.trim() === "") return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? clampDelay(value) : null;
+}
+
+const state = {
+  delay: storedDelay(),
   showDrafts: localStorage.getItem("showDrafts") === "true",
   heroes: {},
 };
@@ -28,6 +36,7 @@ const el = {
   delayUp: document.getElementById("delay-up"),
   delayDown: document.getElementById("delay-down"),
   draftToggle: document.getElementById("draft-toggle"),
+  hardRefresh: document.getElementById("hard-refresh"),
 };
 
 function clampDelay(value) {
@@ -170,6 +179,13 @@ function renderStatus(data) {
     parts.push(`${data.games.length} live - showing ${Math.round(data.snapshot_age ?? 0)}s behind`);
   }
 
+  /* league_id=0 means "every live league game anywhere", which is dozens of
+     low-tier matches. Easy to mistake one for a TI game, so say it out loud. */
+  if (!data.league_id) {
+    parts.push("ALL leagues - set league_id in config.toml to show only TI");
+    if (level !== "error") level = "warn";
+  }
+
   el.status.textContent = parts.join("  |  ");
   el.status.className = `status ${level}`;
 }
@@ -227,6 +243,25 @@ async function loadHeroes() {
     // Drafts degrade to nothing; every other number on the tile still works.
   }
 }
+
+/* Wipes this browser's saved settings and reloads with the cache bypassed.
+   Two distinct failure modes it clears:
+     - a stale saved delay from an earlier session showing the wrong offset
+     - assets held in memory after the page has been open for days
+   The cache-busting query string is what makes it a *hard* refresh; a plain
+   location.reload() can reuse the in-memory copies. */
+el.hardRefresh.addEventListener("click", async () => {
+  el.hardRefresh.textContent = "reloading...";
+  localStorage.removeItem("delaySeconds");
+  localStorage.removeItem("showDrafts");
+  try {
+    await fetch("/static/app.js", { cache: "reload" });
+    await fetch("/static/style.css", { cache: "reload" });
+  } catch {
+    // Offline or server down; reload anyway so the error state is visible.
+  }
+  location.replace(`${location.pathname}?r=${Date.now()}`);
+});
 
 renderDelay();
 loadHeroes().then(refresh);

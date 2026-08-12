@@ -138,6 +138,9 @@ sizing is tuned for. Verified on a 1440x900 secondary display.
 - `−15s` / `+15s` adjust the delay (persisted in the browser)
 - `Drafts` toggles hero portraits — off by default, since 40 icons is too dense
   on a small screen
+- `↻ Refresh` clears this browser's saved delay and draft settings and reloads
+  bypassing the cache. Use it if the delay looks wrong (it's remembered across
+  sessions, so an old value can linger) or the page has been open for days
 - The status line says `warming up` while there's less than `N` seconds of
   history, and `STALE` if Valve's API stops responding. It never silently shows
   fresher data than you asked for, and never blanks a tile — the last good

@@ -19,10 +19,15 @@
 
     <div id="status" class="status"></div>
 
-    <label class="toggle">
-      <input type="checkbox" id="draft-toggle">
-      <span>Drafts</span>
-    </label>
+    <div class="right-controls">
+      <label class="toggle">
+        <input type="checkbox" id="draft-toggle">
+        <span>Drafts</span>
+      </label>
+      <button id="hard-refresh" title="Clear the saved delay and draft settings, then reload bypassing the cache">
+        &#8635; Refresh
+      </button>
+    </div>
   </header>
 
   <main id="grid" class="grid"></main>
