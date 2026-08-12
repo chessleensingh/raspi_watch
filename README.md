@@ -107,15 +107,31 @@ Find TI's league id once it's live, and paste it into `config.toml`:
 python scripts\find_league.py
 ```
 
-Run it:
+Run it and put it on the second screen in one step:
+
+```powershell
+.\scripts\open_scoreboard.ps1
+```
+
+That starts the server and opens the page fullscreen on the secondary display
+(falling back to the primary if there's only one). Use `-NoServer` if the server
+is already running. Fullscreen matters: in a normal window the taskbar clips the
+bottom row of tiles.
+
+To run the server alone:
 
 ```powershell
 python -m scoreboard.server
 ```
 
-Open <http://localhost:8000> on the table screen. It binds `0.0.0.0`, so a phone
-on the same network works too — and different viewers can run different delays,
-since the delay is a client-side setting.
+It binds `0.0.0.0`, so a phone on the same network works too — and different
+viewers can run different delays, since the delay is a per-client setting.
+
+### Layout
+
+Tiles are laid out by game count: 1 game fills the screen, 2–4 go in a 2x2,
+more spill into three columns. Four is the TI group-stage case and is what the
+sizing is tuned for. Verified on a 1440x900 secondary display.
 
 ### On screen
 

@@ -9,8 +9,14 @@ const REFRESH_MS = 3000;
 const DELAY_STEP = 15;
 const MAX_DELAY = 900;
 
+const stored = localStorage.getItem("delaySeconds");
+
 const state = {
-  delay: clampDelay(Number(localStorage.getItem("delaySeconds") ?? 120)),
+  /* null means "no choice saved in this browser yet" - the first request omits
+     the delay parameter so the server's configured default applies, and we
+     adopt whatever it returns. Hardcoding 120 here made
+     default_delay_seconds in config.toml silently do nothing. */
+  delay: stored === null ? null : clampDelay(Number(stored)),
   showDrafts: localStorage.getItem("showDrafts") === "true",
   heroes: {},
 };
@@ -37,6 +43,10 @@ function setDelay(seconds) {
 }
 
 function renderDelay() {
+  if (state.delay === null) {
+    el.delayValue.textContent = "--";
+    return;
+  }
   const m = Math.floor(state.delay / 60);
   const s = state.delay % 60;
   el.delayValue.textContent = m > 0 ? `${m}:${String(s).padStart(2, "0")}` : `${s}s`;
@@ -45,8 +55,14 @@ function renderDelay() {
 /* "+15s" means "show me newer data", i.e. a SMALLER delay. Labelling these by
    what the viewer wants rather than by the underlying number avoids the
    inverted-control confusion. */
-el.delayUp.addEventListener("click", () => setDelay(state.delay - DELAY_STEP));
-el.delayDown.addEventListener("click", () => setDelay(state.delay + DELAY_STEP));
+/* Guard against a click landing before the first response has told us what the
+   server's default delay is. */
+el.delayUp.addEventListener("click", () => {
+  if (state.delay !== null) setDelay(state.delay - DELAY_STEP);
+});
+el.delayDown.addEventListener("click", () => {
+  if (state.delay !== null) setDelay(state.delay + DELAY_STEP);
+});
 
 el.draftToggle.checked = state.showDrafts;
 el.draftToggle.addEventListener("change", () => {
@@ -158,8 +174,18 @@ function renderStatus(data) {
   el.status.className = `status ${level}`;
 }
 
+/* TI's group stage runs four concurrent games, so four must land as 2x2 rather
+   than one wide row. Beyond four we go to three columns and let rows wrap. */
+function columnsFor(count) {
+  if (count <= 1) return 1;
+  if (count <= 4) return 2;
+  if (count <= 9) return 3;
+  return 4;
+}
+
 function render(data) {
   renderStatus(data);
+  el.grid.style.setProperty("--cols", columnsFor(data.games.length));
   el.grid.replaceChildren();
 
   if (!data.games.length) {
@@ -177,9 +203,17 @@ function render(data) {
 
 async function refresh() {
   try {
-    const res = await fetch(`/api/games?delay=${state.delay}`);
+    // Omitting the parameter entirely lets the server's configured default win.
+    const query = state.delay === null ? "" : `?delay=${state.delay}`;
+    const res = await fetch(`/api/games${query}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    render(await res.json());
+
+    const data = await res.json();
+    if (state.delay === null) {
+      state.delay = clampDelay(data.delay_seconds);
+      renderDelay();
+    }
+    render(data);
   } catch (err) {
     el.status.textContent = `cannot reach scoreboard server: ${err.message}`;
     el.status.className = "status error";
