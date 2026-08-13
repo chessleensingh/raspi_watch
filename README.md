@@ -78,7 +78,20 @@ python scripts\find_league.py
 
 ## Running it
 
-Two scripts, in this order:
+```powershell
+.\scripts\start_all.ps1            # server + both screens
+.\scripts\start_all.ps1 -Restart   # kill what's running first
+.\scripts\start_all.ps1 -Demo      # invented games, for testing the clicks
+```
+
+**It checks the pages actually loaded, and that check matters.** A browser
+window can open, look entirely correct, and never load the page -- which
+happened repeatedly during TI's first round and is indistinguishable from a
+working screen until you try to use it. So the script counts requests: a live
+viewer polls about twice a second, a live scoreboard once every three. It prints
+OK or NOT LOADING for each rather than leaving you to find out mid-match.
+
+The two halves can still be run separately:
 
 ```powershell
 .\scripts\open_scoreboard.ps1   # starts the server, opens the scoreboard on the small screen
@@ -134,11 +147,16 @@ coordinates the two.
 
 ### Viewer keys
 
-| Key | Does |
-|---|---|
-| `1`–`4` | show that stream directly, without the scoreboard |
-| `M` | mute / unmute |
-| `F` | toggle fullscreen |
+| Key | Button | Does |
+|---|---|---|
+| `1`–`4` | — | show that stream directly, without the scoreboard |
+| `M` | top-right | mute / unmute |
+| `R` | top-right | re-read `streams.toml` and rebuild the players |
+| `F` | — | toggle fullscreen |
+
+The buttons appear top-right when the mouse moves. They exist because the keys
+need that window focused, and the viewer normally sits on the screen you are not
+typing at.
 
 ### On the scoreboard
 
