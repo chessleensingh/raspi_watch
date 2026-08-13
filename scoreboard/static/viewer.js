@@ -27,7 +27,20 @@ const el = {
   label: document.getElementById("label"),
   unmute: document.getElementById("unmute"),
   toast: document.getElementById("toast"),
+  btnMute: document.getElementById("btn-mute"),
+  btnMuteIcon: document.getElementById("btn-mute-icon"),
+  btnMuteText: document.getElementById("btn-mute-text"),
+  btnReload: document.getElementById("btn-reload"),
 };
+
+/* Keep the mute button showing the state it is IN, not the action it performs.
+   A button reading "Mute" while already muted is the classic way to make
+   someone press it twice and end up back where they started. */
+function renderMuteButton() {
+  el.btnMuteIcon.innerHTML = state.armed ? "&#128266;" : "&#128263;";
+  el.btnMuteText.textContent = state.armed ? "Sound on" : "Sound off";
+  el.btnMute.classList.toggle("on", state.armed);
+}
 
 function toast(message, isError = false) {
   el.toast.textContent = message;
@@ -221,6 +234,7 @@ function arm() {
   if (state.armed) return;
   state.armed = true;
   el.unmute.hidden = true;
+  renderMuteButton();
   if (state.showing !== null) state.players.get(state.showing)?.unmute();
   setLabel(`STREAM ${state.showing + 1}`);
   flashLabel();
@@ -231,6 +245,7 @@ function toggleMute() {
   state.armed = false;
   state.players.get(state.showing)?.mute();
   el.unmute.hidden = false;
+  renderMuteButton();
   setLabel(`STREAM ${state.showing + 1}  (muted)`);
   flashLabel();
 }
@@ -247,6 +262,10 @@ async function poll() {
 }
 
 el.unmute.addEventListener("click", arm);
+el.btnMute.addEventListener("click", toggleMute);
+el.btnReload.addEventListener("click", reloadStreams);
+renderMuteButton();
+
 
 /* Pressing a number here must tell the SERVER, not just this page.
  *

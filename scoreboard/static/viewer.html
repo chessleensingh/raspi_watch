@@ -13,6 +13,18 @@
 
   <div id="label" class="label"></div>
 
+  <!-- Clickable equivalents of the keys. The keyboard needs this window
+       focused; a mouse does not, which matters when the viewer is on a screen
+       you are not typing at. -->
+  <div id="controls" class="controls">
+    <button id="btn-mute" class="control" title="Mute / unmute (M)">
+      <span id="btn-mute-icon">&#128263;</span><span id="btn-mute-text">Sound off</span>
+    </button>
+    <button id="btn-reload" class="control" title="Re-read streams.toml (R)">
+      <span>&#8635;</span><span>Reload streams</span>
+    </button>
+  </div>
+
   <!-- Browsers only allow autoplay when muted, and only a gesture on THIS
        window can unmute. So the picture starts silent and this asks once. -->
   <button id="unmute" class="unmute" hidden>

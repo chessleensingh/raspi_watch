@@ -106,3 +106,41 @@ body.pointer { cursor: default; }
 }
 .toast.visible { opacity: 1; }
 .toast.error { color: #ff6b6b; border-color: #5a2020; }
+
+/* Clickable controls, top-right.
+   Dim by default so they do not compete with the video, and fully visible
+   while the mouse is moving -- the same rule the cursor follows, so the screen
+   is clean whenever nobody is touching it. */
+.controls {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 6;
+  display: flex;
+  gap: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+body.pointer .controls { opacity: 1; }
+/* Hovering must hold them visible on its own. The cursor rule fades after two
+   still seconds, and a pointer resting on a button is not moving -- so without
+   this the control disappears from under the mouse about to click it.
+   Opacity 0 still receives clicks, so they stay reachable throughout. */
+.controls:hover { opacity: 1; }
+
+.control {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(5, 7, 10, 0.88);
+  color: #9aa5b1;
+  border: 1px solid #232a33;
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.control:hover { color: #e8ecf1; border-color: #4a5568; }
+/* Sound being ON is the state worth spotting from across the room. */
+.control.on { color: #6ee7b7; border-color: #2f6f57; }
