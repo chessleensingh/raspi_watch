@@ -34,9 +34,15 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 def check(source, league_id):
-    """A game in our league that has actually started."""
+    """A game in our league with a clock that has actually moved.
+
+    Not Game.in_progress: that is true the moment duration exists, so a game
+    sitting at 00:00 satisfies it and fired this watcher on the horn. What we
+    are waiting to see is Valve keeping a TI game in the feed once it is being
+    played, which needs the clock to have advanced.
+    """
     games = parse_live_games(source.fetch_live_games(), league_id=league_id)
-    return [g for g in games if g.in_progress]
+    return [g for g in games if g.duration and g.duration > 0]
 
 
 def main() -> int:
