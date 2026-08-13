@@ -3,7 +3,9 @@ requests>=2.31
 
 # For wall/find_streams.py, which now runs here rather than on the Mac: it is
 # what resolves the day's four YouTube video IDs for wall/streams.toml.
-yt-dlp>=2024.1.1
+# Must be recent: 2026.03.17 silently reported every channel as offline,
+# because YouTube changed the /streams tab and older extractors lose live_status.
+yt-dlp>=2026.07.04
 
 # Dev
 pytest>=7.0

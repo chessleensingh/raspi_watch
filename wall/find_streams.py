@@ -49,6 +49,17 @@ TWITCH_CANDIDATES = TWITCH_ENGLISH + [
 ]
 
 
+def printable(text: str, encoding: str | None = None) -> str:
+    """Drops characters the console cannot represent.
+
+    Windows consoles default to cp1252 and stream titles are routinely not:
+    em dashes, team tags, CJK. Printing one raw raises UnicodeEncodeError
+    halfway through the results, which loses the ids you came for.
+    """
+    encoding = encoding or sys.stdout.encoding or "utf-8"
+    return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+
+
 def yt_dlp_command() -> list[str]:
     """How to invoke yt-dlp here, as an argv prefix.
 
@@ -183,7 +194,7 @@ def main() -> int:
         for stream in sorted(live, key=lambda s: s["viewers"], reverse=True):
             viewers = f"{stream['viewers']:,}" if stream["viewers"] else "?"
             print(f"  LIVE  {stream['url']}   {viewers} watching")
-            print(f"        {stream['title'][:90]}")
+            print(f"        {printable(stream['title'][:90])}")
             found.append(stream["url"])
         print()
 
