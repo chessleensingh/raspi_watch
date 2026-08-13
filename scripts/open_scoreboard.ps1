@@ -66,7 +66,11 @@ Start-Process $browser -ArgumentList @(
     "--window-size=$($b.Width),$($b.Height)",
     "--start-fullscreen",
     "--no-first-run",
-    "--no-default-browser-check"
+    "--no-default-browser-check",
+    # A previous window that was killed rather than closed leaves a
+    # crash-restore bubble that swallows the page load entirely.
+    "--disable-session-crashed-bubble",
+    "--hide-crash-restore-bubble"
 )
 
 Write-Output "Scoreboard opened in $(Split-Path $browser -Leaf) on $($screen.DeviceName) ($($b.Width)x$($b.Height) at $($b.X),$($b.Y))"

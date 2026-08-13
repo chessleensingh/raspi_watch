@@ -62,17 +62,54 @@ if (-not $browser) { Write-Error "No Brave, Edge or Chrome found."; exit 1 }
 # still needs the click on the page -- this only allows the silent preload.
 $profileDir = Join-Path $env:LOCALAPPDATA "ti_viewer_profile"
 
-Start-Process $browser -ArgumentList @(
+# NOT --start-fullscreen. Chromium fullscreens on whichever display the window
+# manager happened to place the window on, and on a fresh profile that is not
+# reliably the one --window-position asked for -- the viewer landed on the small
+# screen. So: open windowed, move the window ourselves, and only then fullscreen
+# it, by which point "whichever display it is on" is the right one.
+$proc = Start-Process $browser -PassThru -ArgumentList @(
     "--user-data-dir=$profileDir",
     "--new-window",
     "--app=http://localhost:$Port/viewer",
     "--window-position=$($b.X),$($b.Y)",
     "--window-size=$($b.Width),$($b.Height)",
-    "--start-fullscreen",
     "--autoplay-policy=no-user-gesture-required",
     "--no-first-run",
-    "--no-default-browser-check"
+    "--no-default-browser-check",
+    # A previous window that was killed rather than closed leaves a
+    # crash-restore bubble that swallows the page load entirely.
+    "--disable-session-crashed-bubble",
+    "--hide-crash-restore-bubble"
 )
+
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class Win {
+  [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int t, bool repaint);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+}
+"@
+
+# Brave forks; the window belongs to whichever process wins, so poll for it.
+$handle = [IntPtr]::Zero
+foreach ($attempt in 1..40) {
+    Start-Sleep -Milliseconds 500
+    $window = Get-Process brave -ErrorAction SilentlyContinue |
+        Where-Object { $_.MainWindowTitle -and $_.MainWindowHandle -ne 0 } |
+        Sort-Object StartTime -Descending | Select-Object -First 1
+    if ($window) { $handle = $window.MainWindowHandle; break }
+}
+
+if ($handle -ne [IntPtr]::Zero) {
+    [void][Win]::MoveWindow($handle, $b.X, $b.Y, $b.Width, $b.Height, $true)
+    [void][Win]::SetForegroundWindow($handle)
+    Start-Sleep -Milliseconds 400
+    # F11 now fullscreens onto the display the window actually sits on.
+    [System.Windows.Forms.SendKeys]::SendWait("{F11}")
+} else {
+    Write-Warning "Could not find the viewer window to position it. Drag it to the main screen and press F11."
+}
 
 Write-Output "Viewer opened in $(Split-Path $browser -Leaf) on $($screen.DeviceName) ($($b.Width)x$($b.Height) at $($b.X),$($b.Y))"
 Write-Output "Click once on the page to turn sound on. Keys: 1-4 pick a stream, M mute, F fullscreen."

@@ -10,6 +10,11 @@ is the one you want. Paste its id into config.toml.
 from __future__ import annotations
 
 import sys
+
+# Team names are not ASCII and the Windows console is cp1252, so printing one
+# raw kills the script mid-listing -- right before the line you came to read.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 from collections import defaultdict
 from pathlib import Path
 
