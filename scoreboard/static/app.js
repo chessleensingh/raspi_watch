@@ -301,8 +301,15 @@ function render(data) {
   if (!data.games.length) {
     const empty = document.createElement("div");
     empty.className = "empty";
+    /* Distinguish "you set the wrong id" from "Valve is not publishing", which
+       look identical on screen and lead to opposite actions. During TI 2026's
+       first round the feed carried TI matches only around the draft and dropped
+       them once play started, so an empty board with a correct id is expected
+       rather than a fault to go hunting for. */
     empty.textContent = data.league_id
-      ? `No live games for league ${data.league_id}.`
+      ? `Nothing in Valve's feed for league ${data.league_id} right now. `
+        + `Matches can drop out of the feed mid-game; this fills in by itself `
+        + `when they come back.`
       : "No live league games right now.";
     el.grid.appendChild(empty);
     return;
