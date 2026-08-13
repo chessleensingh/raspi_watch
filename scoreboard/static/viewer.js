@@ -5,10 +5,10 @@
  * trick: switching costs nothing because the stream is already buffered, which
  * is the reason for paying four concurrent decodes.
  *
- * Players are driven through YouTube's and Twitch's JS APIs rather than plain
- * iframes because mute state has to be changed programmatically. A bare iframe
- * can only be unmuted by reloading it with different parameters, which would
- * re-buffer on every switch and defeat the point.
+ * Mute state has to change programmatically -- reloading an iframe to unmute it
+ * would re-buffer on every switch and defeat the point -- so the players are
+ * driven over postMessage with enablejsapi=1, which needs no third-party script.
+ * See makeYouTubePlayer for why the script version was abandoned.
  */
 
 const POLL_MS = 500;
@@ -36,11 +36,22 @@ function toast(message, isError = false) {
   toast.timer = setTimeout(() => (el.toast.className = "toast"), 3000);
 }
 
-function showLabel(text) {
+/* Which stream is showing, permanently in the corner.
+ *
+ * It used to fade after a couple of seconds, which was wrong: two Dota streams
+ * look nearly identical, so without a label on screen there is no way to tell a
+ * switch that worked from one that did nothing. Dim enough to ignore, present
+ * enough to answer the question. */
+function setLabel(text) {
   el.label.textContent = text;
   el.label.classList.add("visible");
-  clearTimeout(showLabel.timer);
-  showLabel.timer = setTimeout(() => el.label.classList.remove("visible"), 2500);
+}
+
+/* Briefly brighten it, so a change catches the eye. */
+function flashLabel() {
+  el.label.classList.add("flash");
+  clearTimeout(flashLabel.timer);
+  flashLabel.timer = setTimeout(() => el.label.classList.remove("flash"), 1200);
 }
 
 function loadScript(src) {
@@ -200,7 +211,10 @@ function show(index) {
   if (state.armed) state.players.get(index)?.unmute();
 
   state.showing = index;
-  showLabel(`${index + 1}  ${stream.label}`);
+  // The bare video id is noise; the number is what you press and what the
+  // scoreboard badge shows.
+  setLabel(`STREAM ${index + 1}${state.armed ? "" : "  (muted)"}`);
+  flashLabel();
 }
 
 function arm() {
@@ -208,7 +222,8 @@ function arm() {
   state.armed = true;
   el.unmute.hidden = true;
   if (state.showing !== null) state.players.get(state.showing)?.unmute();
-  showLabel("sound on");
+  setLabel(`STREAM ${state.showing + 1}`);
+  flashLabel();
 }
 
 function toggleMute() {
@@ -216,7 +231,8 @@ function toggleMute() {
   state.armed = false;
   state.players.get(state.showing)?.mute();
   el.unmute.hidden = false;
-  showLabel("muted");
+  setLabel(`STREAM ${state.showing + 1}  (muted)`);
+  flashLabel();
 }
 
 async function poll() {
