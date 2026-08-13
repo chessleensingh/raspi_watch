@@ -68,13 +68,22 @@ Write-Output "server up on port $Port$(if ($Demo) { '  (DEMO - games are invente
 Start-Sleep -Seconds 3
 & (Join-Path $PSScriptRoot "open_scoreboard.ps1") -NoServer -Port $Port | Out-Null
 
-# Give both pages time to load, then measure whether they are really talking.
-Start-Sleep -Seconds 10
-$v1 = Count-Requests "GET /api/viewer"
-$g1 = Count-Requests "GET /api/games"
-Start-Sleep -Seconds 9
-$viewer = (Count-Requests "GET /api/viewer") - $v1
-$board = (Count-Requests "GET /api/games") - $g1
+# Measure repeatedly rather than once. A cold profile -- the first launch after
+# the directory is deleted -- can take most of a minute to paint a page, and a
+# single early sample calls that a failure when it is merely slow. Keep
+# sampling until both look alive, or until it is genuinely too long to be
+# waiting on startup.
+$viewer = 0
+$board = 0
+foreach ($round in 1..6) {
+    $v1 = Count-Requests "GET /api/viewer"
+    $g1 = Count-Requests "GET /api/games"
+    Start-Sleep -Seconds 9
+    $viewer = (Count-Requests "GET /api/viewer") - $v1
+    $board = (Count-Requests "GET /api/games") - $g1
+    if ($viewer -ge 5 -and $board -ge 2) { break }
+    if ($round -lt 6) { Write-Output "  still starting up (viewer $viewer, scoreboard $board)..." }
+}
 
 Write-Output ""
 Write-Output "viewer     : $viewer requests in 9s  $(if ($viewer -ge 5) { 'OK' } else { 'NOT LOADING' })"
