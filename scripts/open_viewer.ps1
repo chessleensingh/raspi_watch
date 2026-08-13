@@ -67,6 +67,16 @@ $profileDir = Join-Path $env:LOCALAPPDATA "ti_viewer_profile"
 # reliably the one --window-position asked for -- the viewer landed on the small
 # screen. So: open windowed, move the window ourselves, and only then fullscreen
 # it, by which point "whichever display it is on" is the right one.
+# A browser that was killed rather than closed leaves SingletonLock/Cookie/Socket
+# behind. The next launch sees them, tries to hand the URL to an instance that is
+# no longer alive, and exits without ever loading the page -- a window may even
+# appear, but nothing is requested from the server. Clearing them is safe: this
+# profile directory is used by nothing else.
+if (Test-Path $profileDir) {
+    Get-ChildItem -Path $profileDir -Filter "Singleton*" -Force -ErrorAction SilentlyContinue |
+        Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+}
+
 $proc = Start-Process $browser -PassThru -ArgumentList @(
     "--user-data-dir=$profileDir",
     "--new-window",
@@ -75,11 +85,7 @@ $proc = Start-Process $browser -PassThru -ArgumentList @(
     "--window-size=$($b.Width),$($b.Height)",
     "--autoplay-policy=no-user-gesture-required",
     "--no-first-run",
-    "--no-default-browser-check",
-    # A previous window that was killed rather than closed leaves a
-    # crash-restore bubble that swallows the page load entirely.
-    "--disable-session-crashed-bubble",
-    "--hide-crash-restore-bubble"
+    "--no-default-browser-check"
 )
 
 Add-Type @"

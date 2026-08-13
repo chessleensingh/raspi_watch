@@ -248,9 +248,28 @@ async function poll() {
 
 el.unmute.addEventListener("click", arm);
 
+/* Pressing a number here must tell the SERVER, not just this page.
+ *
+ * show() alone lasts 500ms: the next poll reads the server's selection, sees the
+ * old value, and puts it straight back -- so the key looked like it did nothing
+ * but flicker. Posting it makes this page and the scoreboard agree on one
+ * answer, and keeps the scoreboard's highlight in step with keys pressed here.
+ *
+ * show() still runs first so the switch is instant rather than waiting on the
+ * round trip; the poll confirms it a moment later. */
+async function select(index) {
+  if (!state.streams[index]) return;
+  show(index);
+  try {
+    await fetch(`/api/viewer/select/${index}`, { method: "POST" });
+  } catch {
+    // Server down: the local switch stands, and polling reconciles on return.
+  }
+}
+
 document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
-  if (key >= "1" && key <= "9") show(Number(key) - 1);
+  if (key >= "1" && key <= "9") select(Number(key) - 1);
   else if (key === "m") toggleMute();
   else if (key === "f") {
     if (document.fullscreenElement) document.exitFullscreen();
