@@ -46,16 +46,32 @@ if ($Browser) { $candidates = @($Browser) + $candidates }
 $browser = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 if (-not $browser) { Write-Error "No Brave, Edge or Chrome found."; exit 1 }
 
+# --user-data-dir is what makes the rest of these flags work at all.
+#
+# Chromium applies command-line flags only to the process that STARTS. Launch a
+# URL while a browser is already running and the existing process just opens a
+# window, silently ignoring every flag below -- so --autoplay-policy is dropped,
+# the four players never preload, and the screen sits black. A separate profile
+# directory forces its own process, so the flags always apply.
+#
+# It also keeps this window away from your everyday browsing: no shared tabs, no
+# shared session, and closing one does not disturb the other.
+#
 # --autoplay-policy: without it Chromium blocks the muted autoplay of streams
 # the page has not been interacted with, and all four tiles sit black. Sound
 # still needs the click on the page -- this only allows the silent preload.
+$profileDir = Join-Path $env:LOCALAPPDATA "ti_viewer_profile"
+
 Start-Process $browser -ArgumentList @(
+    "--user-data-dir=$profileDir",
     "--new-window",
     "--app=http://localhost:$Port/viewer",
     "--window-position=$($b.X),$($b.Y)",
     "--window-size=$($b.Width),$($b.Height)",
     "--start-fullscreen",
-    "--autoplay-policy=no-user-gesture-required"
+    "--autoplay-policy=no-user-gesture-required",
+    "--no-first-run",
+    "--no-default-browser-check"
 )
 
 Write-Output "Viewer opened in $(Split-Path $browser -Leaf) on $($screen.DeviceName) ($($b.Width)x$($b.Height) at $($b.X),$($b.Y))"

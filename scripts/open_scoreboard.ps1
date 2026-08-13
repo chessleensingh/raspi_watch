@@ -51,12 +51,22 @@ if (-not $browser) { Write-Error "No Brave, Edge or Chrome found."; exit 1 }
 
 # --app strips the browser chrome; --start-fullscreen then fills the display the
 # window was positioned on, so the taskbar stops clipping the bottom tiles.
+#
+# --user-data-dir is not optional here either: Chromium applies flags only to
+# the process that starts, so with a browser already running the window opens
+# from that process and --start-fullscreen is silently ignored. Its own profile
+# directory forces its own process, and keeps this off your everyday browsing.
+$profileDir = Join-Path $env:LOCALAPPDATA "ti_scoreboard_profile"
+
 Start-Process $browser -ArgumentList @(
+    "--user-data-dir=$profileDir",
     "--new-window",
     "--app=http://localhost:$Port",
     "--window-position=$($b.X),$($b.Y)",
     "--window-size=$($b.Width),$($b.Height)",
-    "--start-fullscreen"
+    "--start-fullscreen",
+    "--no-first-run",
+    "--no-default-browser-check"
 )
 
 Write-Output "Scoreboard opened in $(Split-Path $browser -Leaf) on $($screen.DeviceName) ($($b.Width)x$($b.Height) at $($b.X),$($b.Y))"
