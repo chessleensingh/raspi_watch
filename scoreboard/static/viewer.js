@@ -53,39 +53,53 @@ function loadScript(src) {
   });
 }
 
-/* The YouTube API signals readiness through one global callback, so the promise
-   is created before the script tag and resolved from it. */
-const youTubeReady = new Promise((resolve) => {
-  window.onYouTubeIframeAPIReady = resolve;
-});
-
+/* A plain iframe driven by postMessage, NOT YouTube's iframe_api script.
+ *
+ * The script version is the documented path and was the first implementation,
+ * but it puts a third-party script between the page and every player: Brave
+ * Shields blocks https://www.youtube.com/iframe_api, buildPlayers() then never
+ * resolves, and the viewer silently never starts polling -- no video, no
+ * switching, no error that points at the cause.
+ *
+ * enablejsapi=1 exposes the same commands over postMessage, which needs no
+ * script at all. Fewer moving parts, and nothing left for an ad blocker to
+ * remove.
+ */
 function makeYouTubePlayer(container, stream) {
-  const host = document.createElement("div");
-  container.appendChild(host);
-
-  const player = new YT.Player(host, {
-    videoId: stream.id,
-    playerVars: {
-      autoplay: 1,
-      mute: 1,
-      controls: 0,
-      modestbranding: 1,
-      rel: 0,
-      playsinline: 1,
-      // The viewer has its own key handling; YouTube's would fight it.
-      disablekb: 1,
-    },
-    events: {
-      onReady: (event) => event.target.playVideo(),
-      onError: () => toast(`stream ${stream.index + 1} failed to load`, true),
-    },
+  const params = new URLSearchParams({
+    autoplay: "1",
+    mute: "1",
+    controls: "0",
+    modestbranding: "1",
+    rel: "0",
+    playsinline: "1",
+    enablejsapi: "1",
+    // The viewer has its own key handling; YouTube's would fight it.
+    disablekb: "1",
+    origin: location.origin,
   });
 
+  const frame = document.createElement("iframe");
+  frame.src = `https://www.youtube.com/embed/${stream.id}?${params}`;
+  // Without this the browser refuses the autoplay even though it is muted.
+  frame.allow = "autoplay; encrypted-media; picture-in-picture";
+  frame.setAttribute("frameborder", "0");
+  container.appendChild(frame);
+
+  const command = (func, args = []) => {
+    try {
+      frame.contentWindow?.postMessage(
+        JSON.stringify({ event: "command", func, args }), "*");
+    } catch {
+      // A player that refuses to change volume must not stop the switch.
+    }
+  };
+
   return {
-    mute: () => player.mute(),
+    mute: () => command("mute"),
     unmute: () => {
-      player.unMute();
-      player.setVolume(100);
+      command("unMute");
+      command("setVolume", [100]);
     },
   };
 }
@@ -134,14 +148,15 @@ function makeEmptyPlayer(container, stream) {
 async function buildPlayers(streams) {
   const kinds = new Set(streams.map((s) => s.kind));
 
-  /* Only fetch the API a configured stream actually needs. A YouTube-only
-     setup should not fail because Twitch's script is unreachable. */
-  if (kinds.has("youtube")) {
-    await loadScript("https://www.youtube.com/iframe_api");
-    await youTubeReady;
-  }
+  /* YouTube needs no script at all -- see makeYouTubePlayer. Twitch still does,
+     and it is the fallback path, so a failure to load it must not take the
+     whole page down when the configured streams are all YouTube. */
   if (kinds.has("twitch")) {
-    await loadScript("https://embed.twitch.tv/embed/v1.js");
+    try {
+      await loadScript("https://embed.twitch.tv/embed/v1.js");
+    } catch (err) {
+      toast("Twitch embeds unavailable; those slots will stay blank", true);
+    }
   }
 
   for (const stream of streams) {
@@ -150,10 +165,21 @@ async function buildPlayers(streams) {
     container.dataset.index = stream.index;
     el.stack.appendChild(container);
 
+    /* One player that refuses to build must not cost you the other three, nor
+       stop the page from starting its poll loop. That failure mode -- an
+       exception here leaving the viewer alive but deaf to the scoreboard -- is
+       worse than a blank slot, because nothing on screen explains it. */
     let player;
-    if (stream.kind === "youtube") player = makeYouTubePlayer(container, stream);
-    else if (stream.kind === "twitch") player = makeTwitchPlayer(container, stream);
-    else player = makeEmptyPlayer(container, stream);
+    try {
+      if (stream.kind === "youtube") player = makeYouTubePlayer(container, stream);
+      else if (stream.kind === "twitch") player = makeTwitchPlayer(container, stream);
+      else player = makeEmptyPlayer(container, stream);
+    } catch (err) {
+      container.classList.add("empty");
+      container.textContent = `stream ${stream.index + 1} failed to load`;
+      player = { mute: () => {}, unmute: () => {} };
+      toast(`stream ${stream.index + 1}: ${err.message}`, true);
+    }
 
     state.players.set(stream.index, player);
   }
