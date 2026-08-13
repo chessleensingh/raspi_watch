@@ -135,6 +135,27 @@ cannot be derived, only stated. It defaults to screen position, which is correct
 whenever `wall/streams.toml` is ordered the same way as the scoreboard. When it
 isn't, click the badge to cycle it; your choice is remembered per match.
 
+### Drift, and the `L` key
+
+Preloading is what makes switching instant, and drift is its price. A player
+sitting behind the visible one stalls and recovers over an evening, and each
+recovery resumes where it left off rather than catching up -- so a stream you
+switch to can be minutes behind the one you were watching. That also quietly
+invalidates the delay you tuned on the scoreboard, since the delay is relative
+to what is on screen.
+
+Switching now snaps that stream to the live edge on its way in. `L` (or the
+button) does it to all four at once, which is what you want after leaving the
+viewer running through a long break.
+
+This is deliberately not done on a timer: seeking makes a player rebuffer, and a
+background timer doing that would occasionally stall the exact stream you were
+about to switch to -- reintroducing the pause preloading exists to avoid.
+
+Measured on this box during round 1: four concurrent 1080p streams cost about
+**11% of a 16-core CPU**, so drift here is not the machine struggling to decode.
+It is how live players behave.
+
 ### Sound
 
 The viewer starts **silent**, and there is nothing to fix: browsers only allow
@@ -151,6 +172,7 @@ coordinates the two.
 |---|---|---|
 | `1`–`4` | — | show that stream directly, without the scoreboard |
 | `M` | top-right | mute / unmute |
+| `L` | top-right | jump every stream to the live edge |
 | `R` | top-right | re-read `streams.toml` and rebuild the players |
 | `F` | — | toggle fullscreen |
 

@@ -97,4 +97,4 @@ if ($viewer -lt 5 -or $board -lt 2) {
 }
 
 Write-Output ""
-Write-Output "Viewer keys: 1-4 stream, M mute, R reload streams, F fullscreen."
+Write-Output "Viewer keys: 1-4 stream, M mute, L sync to live, R reload streams, F fullscreen."

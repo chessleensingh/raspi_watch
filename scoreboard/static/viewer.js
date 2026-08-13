@@ -31,6 +31,7 @@ const el = {
   btnMuteIcon: document.getElementById("btn-mute-icon"),
   btnMuteText: document.getElementById("btn-mute-text"),
   btnReload: document.getElementById("btn-reload"),
+  btnLive: document.getElementById("btn-live"),
 };
 
 /* Keep the mute button showing the state it is IN, not the action it performs.
@@ -125,6 +126,19 @@ function makeYouTubePlayer(container, stream) {
       command("unMute");
       command("setVolume", [100]);
     },
+    /* Jump to the live edge.
+     *
+     * Preloading is what makes switching instant, and drift is its price: a
+     * player that has been sitting behind the visible one for twenty minutes
+     * has stalled and recovered a few times, and each recovery resumes where it
+     * left off rather than catching up. So the stream you switch to is minutes
+     * behind the one you were watching, which also quietly invalidates the
+     * delay you tuned against the scoreboard.
+     *
+     * Seeking past the end of a live stream clamps to the live edge, so a
+     * deliberately absurd number means "as live as you have". Cheaper than a
+     * reload and keeps the switch instant. */
+    live: () => command("seekTo", [1e9, true]),
   };
 }
 
@@ -159,6 +173,8 @@ function makeTwitchPlayer(container, stream) {
       player.setMuted(false);
       player.setVolume(1);
     },
+    // Twitch's embed has no live-edge seek; its own player handles catch-up.
+    live: () => {},
   };
 }
 
@@ -166,7 +182,7 @@ function makeEmptyPlayer(container, stream) {
   container.classList.add("empty");
   container.textContent = stream.label;
   // Nothing to mute, but the interface has to match so show() stays simple.
-  return { mute: () => {}, unmute: () => {} };
+  return { mute: () => {}, unmute: () => {}, live: () => {} };
 }
 
 async function buildPlayers(streams) {
@@ -201,7 +217,7 @@ async function buildPlayers(streams) {
     } catch (err) {
       container.classList.add("empty");
       container.textContent = `stream ${stream.index + 1} failed to load`;
-      player = { mute: () => {}, unmute: () => {} };
+      player = { mute: () => {}, unmute: () => {}, live: () => {} };
       toast(`stream ${stream.index + 1}: ${err.message}`, true);
     }
 
@@ -222,6 +238,8 @@ function show(index) {
     if (i !== index) player.mute();
   }
   if (state.armed) state.players.get(index)?.unmute();
+  // Catch up before you look at it, not after.
+  state.players.get(index)?.live();
 
   state.showing = index;
   // The bare video id is noise; the number is what you press and what the
@@ -264,6 +282,7 @@ async function poll() {
 el.unmute.addEventListener("click", arm);
 el.btnMute.addEventListener("click", toggleMute);
 el.btnReload.addEventListener("click", reloadStreams);
+el.btnLive.addEventListener("click", syncToLive);
 renderMuteButton();
 
 
@@ -322,10 +341,19 @@ async function reloadStreams() {
   }
 }
 
+/* Drag every player back to the live edge, including the hidden ones, so the
+   next switch does not land minutes in the past. */
+function syncToLive() {
+  for (const player of state.players.values()) player.live();
+  setLabel(`STREAM ${(state.showing ?? 0) + 1}  - synced to live`);
+  flashLabel();
+}
+
 document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
   if (key >= "1" && key <= "9") select(Number(key) - 1);
   else if (key === "r") reloadStreams();
+  else if (key === "l") syncToLive();
   else if (key === "m") toggleMute();
   else if (key === "f") {
     if (document.fullscreenElement) document.exitFullscreen();
