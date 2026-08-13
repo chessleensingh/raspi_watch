@@ -129,21 +129,45 @@ def create_app(config: Config, source=None, heroes: HeroIndex | None = None,
     def viewer():
         return send_from_directory(STATIC_DIR, "viewer.html")
 
+    def viewer_state():
+        """Always read the CURRENT list. Capturing it in a closure would make
+        /api/viewer/reload a no-op for every endpoint but itself."""
+        current = app.config["streams"]
+        return {
+            "selected": app.config["selected_stream"],
+            "count": len(current),
+            "streams": [s.to_dict() for s in current],
+        }
+
     @app.get("/api/viewer")
     def api_viewer():
-        return jsonify({
-            "selected": app.config["selected_stream"],
-            "count": len(streams),
-            "streams": [s.to_dict() for s in streams],
-        })
+        return jsonify(viewer_state())
+
+    @app.post("/api/viewer/reload")
+    def api_viewer_reload():
+        """Re-read streams.toml without restarting.
+
+        The morning routine is pasting the day's video ids into that file, and
+        making that also mean "restart the server, then reload the viewer" is
+        two things to remember while a match is starting."""
+        app.config["streams"] = load_streams()
+
+        # A list that shrank must not leave the selection pointing past its end.
+        selected = app.config["selected_stream"]
+        if selected is not None and selected >= len(app.config["streams"]):
+            app.config["selected_stream"] = 0 if app.config["streams"] else None
+
+        log.info("reloaded %d stream(s) from disk", len(app.config["streams"]))
+        return jsonify(viewer_state())
 
     @app.post("/api/viewer/select/<int:index>")
     def api_viewer_select(index: int):
-        if not 0 <= index < len(streams):
+        if not 0 <= index < len(app.config["streams"]):
             # Leave the previous selection alone: a bad click must not blank
             # the main screen mid-game.
             return jsonify({
-                "error": f"no stream {index}; {len(streams)} configured",
+                "error": f"no stream {index}; "
+                         f"{len(app.config['streams'])} configured",
                 "selected": app.config["selected_stream"],
             }), 400
 

@@ -285,3 +285,64 @@ def test_poll_once_populates_the_buffer(app, client):
     data = client.get("/api/games?delay=0").get_json()
     assert len(data["games"]) == 3
     assert data["poll"]["stale"] is False
+
+
+# ---- reloading the stream list -----------------------------------------
+# The morning routine is "paste today's video ids into streams.toml". Without
+# this it also means restarting the server and reloading the viewer, which is
+# two more things to remember while a match is starting.
+
+
+def test_reload_picks_up_a_changed_stream_list(viewer_app, viewer_client, monkeypatch):
+    import scoreboard.server as server_module
+
+    monkeypatch.setattr(server_module, "load_streams", lambda: [
+        Stream(index=0, kind="youtube", id="new0", label="https://youtu.be/new0"),
+        Stream(index=1, kind="youtube", id="new1", label="https://youtu.be/new1"),
+    ])
+
+    data = viewer_client.post("/api/viewer/reload").get_json()
+
+    assert data["count"] == 2
+    assert data["streams"][0]["id"] == "new0"
+    assert viewer_client.get("/api/viewer").get_json()["streams"][0]["id"] == "new0"
+
+
+def test_reload_keeps_a_selection_that_still_exists(viewer_app, viewer_client, monkeypatch):
+    import scoreboard.server as server_module
+    viewer_client.post("/api/viewer/select/1")
+
+    monkeypatch.setattr(server_module, "load_streams", lambda: [
+        Stream(index=i, kind="youtube", id=f"n{i}", label=f"https://youtu.be/n{i}")
+        for i in range(4)
+    ])
+    viewer_client.post("/api/viewer/reload")
+
+    assert viewer_client.get("/api/viewer").get_json()["selected"] == 1
+
+
+def test_reload_drops_a_selection_that_no_longer_exists(viewer_app, viewer_client, monkeypatch):
+    """Four streams down to two must not leave the viewer pointing at slot 4."""
+    import scoreboard.server as server_module
+    viewer_client.post("/api/viewer/select/3")
+
+    monkeypatch.setattr(server_module, "load_streams", lambda: [
+        Stream(index=0, kind="youtube", id="a", label="a"),
+        Stream(index=1, kind="youtube", id="b", label="b"),
+    ])
+    viewer_client.post("/api/viewer/reload")
+
+    assert viewer_client.get("/api/viewer").get_json()["selected"] == 0
+
+
+def test_selection_is_validated_against_the_reloaded_list(viewer_app, viewer_client, monkeypatch):
+    import scoreboard.server as server_module
+
+    monkeypatch.setattr(server_module, "load_streams", lambda: [
+        Stream(index=0, kind="youtube", id="a", label="a"),
+        Stream(index=1, kind="youtube", id="b", label="b"),
+    ])
+    viewer_client.post("/api/viewer/reload")
+
+    assert viewer_client.post("/api/viewer/select/3").status_code == 400
+    assert viewer_client.post("/api/viewer/select/1").status_code == 200

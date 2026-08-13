@@ -267,9 +267,46 @@ async function select(index) {
   }
 }
 
+/* R: pick up a changed streams.toml without restarting anything.
+ *
+ * Both halves have to be told. The server caches the parsed list at startup and
+ * this page builds its players once at load, so editing the file alone changes
+ * nothing on screen -- which during an event reads as "the refresh did not
+ * work". Reloading the server first, then rebuilding from what it returns,
+ * makes the whole routine: paste the ids, press R.
+ *
+ * The players are torn down and rebuilt, so this DOES re-buffer. That is the
+ * one moment it is acceptable, because the streams being replaced are by
+ * definition not the ones playing.
+ */
+async function reloadStreams() {
+  setLabel("reloading streams...");
+  flashLabel();
+  try {
+    const data = await (await fetch("/api/viewer/reload", { method: "POST" })).json();
+    state.streams = data.streams;
+
+    el.stack.replaceChildren();
+    state.players.clear();
+    state.showing = null;
+
+    await buildPlayers(state.streams);
+    if (!state.streams.length) {
+      setLabel("no streams configured");
+      return;
+    }
+    show(data.selected ?? 0);
+    toast(`reloaded ${data.count} stream(s)`);
+  } catch (err) {
+    toast(`reload failed: ${err.message}`, true);
+    setLabel("reload failed");
+  }
+}
+
 document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
   if (key >= "1" && key <= "9") select(Number(key) - 1);
+  else if (key === "r") reloadStreams();
   else if (key === "m") toggleMute();
   else if (key === "f") {
     if (document.fullscreenElement) document.exitFullscreen();
