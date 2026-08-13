@@ -1,7 +1,9 @@
-# Scoreboard only. The wall needs no Python packages - just mpv, yt-dlp and
-# streamlink from Homebrew.
 flask>=2.3
 requests>=2.31
+
+# For wall/find_streams.py, which now runs here rather than on the Mac: it is
+# what resolves the day's four YouTube video IDs for wall/streams.toml.
+yt-dlp>=2024.1.1
 
 # Dev
 pytest>=7.0

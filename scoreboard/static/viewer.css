@@ -1,0 +1,102 @@
+/* Fullscreen viewer for the main screen. Deliberately almost invisible: the
+   picture is the whole point, so every control fades out of the way. */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #000;
+  color: #e8ecf1;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+  cursor: none;
+}
+body.pointer { cursor: default; }
+
+.stack {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Every player sits here at full size, stacked. Switching is a change of
+   opacity and z-index -- NEVER display:none or removal from the DOM, which
+   makes browsers throttle or unload the video and reintroduces the buffering
+   that preloading all four exists to avoid. */
+.player {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.player.showing {
+  opacity: 1;
+  z-index: 2;
+}
+.player iframe { width: 100%; height: 100%; border: 0; }
+
+.player.empty {
+  display: grid;
+  place-items: center;
+  background: #05070a;
+  color: #6b7684;
+  font-size: 1.4rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+.label {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 5;
+  background: rgba(5, 7, 10, 0.82);
+  border: 1px solid #232a33;
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+  color: #9aa5b1;
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+}
+.label.visible { opacity: 1; }
+
+.unmute {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  border: 0;
+  background: rgba(0, 0, 0, 0.55);
+  color: #e8ecf1;
+  font: inherit;
+  font-size: 1.6rem;
+  cursor: pointer;
+}
+.unmute[hidden] { display: none; }
+.unmute-icon { font-size: 3rem; }
+.unmute small { font-size: 0.95rem; color: #9aa5b1; }
+
+.toast {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 6;
+  background: rgba(5, 7, 10, 0.9);
+  border: 1px solid #232a33;
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+  color: #9aa5b1;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.toast.visible { opacity: 1; }
+.toast.error { color: #ff6b6b; border-color: #5a2020; }

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TI Viewer</title>
+  <link rel="stylesheet" href="/static/viewer.css">
+</head>
+<body>
+  <!-- All players live in this stack at full size. Only the selected one is
+       opaque and on top; the rest keep playing behind it, muted. -->
+  <main id="stack" class="stack"></main>
+
+  <div id="label" class="label"></div>
+
+  <!-- Browsers only allow autoplay when muted, and only a gesture on THIS
+       window can unmute. So the picture starts silent and this asks once. -->
+  <button id="unmute" class="unmute" hidden>
+    <span class="unmute-icon">&#128263;</span>
+    <span>Click anywhere to turn on sound</span>
+    <small>then audio follows whatever you click on the scoreboard</small>
+  </button>
+
+  <div id="toast" class="toast"></div>
+
+  <noscript>This viewer needs JavaScript.</noscript>
+  <script src="/static/viewer.js"></script>
+</body>
+</html>

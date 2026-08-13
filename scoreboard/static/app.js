@@ -26,9 +26,9 @@ function storedDelay() {
 const state = {
   delay: storedDelay(),
   delayFromValve: false,
-  wallEnabled: false,
-  wallCount: 4,
-  activeWallTile: null,
+  viewerEnabled: false,
+  streamCount: 4,
+  activeStream: null,
   showDrafts: localStorage.getItem("showDrafts") === "true",
   heroes: {},
 };
@@ -146,39 +146,39 @@ function networthRow(game) {
   return wrap;
 }
 
-/* Which wall tile each game drives.
+/* Which stream each game is on.
  *
  * Nothing in Valve's data identifies which Twitch/YouTube stream is showing a
  * given match, so this mapping cannot be derived - it has to be stated. Keyed
  * by match_id and remembered, defaulting to the game's position on screen,
  * which is right whenever streams.toml is ordered the same way.
  */
-function wallTileFor(game, position) {
-  const saved = JSON.parse(localStorage.getItem("wallMap") || "{}");
-  const count = Math.max(state.wallCount || 4, 1);
-  // Wrap: with league_id unset there can be more live games than wall tiles,
-  // and a default of "position" would point at a stream that does not exist.
+function streamFor(game, position) {
+  const saved = JSON.parse(localStorage.getItem("streamMap") || "{}");
+  const count = Math.max(state.streamCount || 4, 1);
+  // Wrap: with league_id unset there can be more live games than streams, and
+  // a default of "position" would point at one that does not exist.
   return saved[game.match_id] ?? position % count;
 }
 
-function setWallTile(matchId, tile) {
-  const saved = JSON.parse(localStorage.getItem("wallMap") || "{}");
-  saved[matchId] = tile;
-  localStorage.setItem("wallMap", JSON.stringify(saved));
+function setStreamFor(matchId, index) {
+  const saved = JSON.parse(localStorage.getItem("streamMap") || "{}");
+  saved[matchId] = index;
+  localStorage.setItem("streamMap", JSON.stringify(saved));
 }
 
-async function switchWallAudio(tile, node) {
-  if (!state.wallEnabled) return;
+async function selectStream(index, node) {
+  if (!state.viewerEnabled) return;
   node.classList.add("switching");
   try {
-    const res = await fetch(`/api/wall/audio/${tile}`, { method: "POST" });
+    const res = await fetch(`/api/viewer/select/${index}`, { method: "POST" });
     if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
-    state.activeWallTile = tile;
+    state.activeStream = index;
     document.querySelectorAll(".tile").forEach((t) =>
-      t.classList.toggle("audio", Number(t.dataset.wallTile) === tile));
+      t.classList.toggle("audio", Number(t.dataset.stream) === index));
   } catch (err) {
     node.classList.add("failed");
-    el.status.textContent = `wall: ${err.message}`;
+    el.status.textContent = `viewer: ${err.message}`;
     el.status.className = "status error";
     setTimeout(() => node.classList.remove("failed"), 2000);
   } finally {
@@ -190,24 +190,24 @@ function tile(game, position) {
   const node = document.createElement("article");
   node.className = "tile" + (game.in_progress ? "" : " pregame");
 
-  const wallTile = wallTileFor(game, position);
-  node.dataset.wallTile = wallTile;
-  if (state.wallEnabled) {
+  const stream = streamFor(game, position);
+  node.dataset.stream = stream;
+  if (state.viewerEnabled) {
     node.classList.add("clickable");
-    if (wallTile === state.activeWallTile) node.classList.add("audio");
-    node.title = `Click to move wall audio to stream ${wallTile + 1}`;
-    node.addEventListener("click", () => switchWallAudio(wallTile, node));
+    if (stream === state.activeStream) node.classList.add("audio");
+    node.title = `Click to put stream ${stream + 1} on the main screen`;
+    node.addEventListener("click", () => selectStream(stream, node));
 
     // The badge states the mapping and cycles it, so a wrong guess is one
     // click to fix rather than a config edit and a restart.
     const badge = document.createElement("button");
-    badge.className = "wall-badge";
-    badge.textContent = `▶ ${wallTile + 1}`;
-    badge.title = "Which wall stream this game is on. Click to change.";
+    badge.className = "stream-badge";
+    badge.textContent = `▶ ${stream + 1}`;
+    badge.title = "Which stream this game is on. Click to change.";
     badge.addEventListener("click", (event) => {
       event.stopPropagation();
-      const next = (wallTile + 1) % Math.max(state.wallCount || 4, 1);
-      setWallTile(game.match_id, next);
+      const next = (stream + 1) % Math.max(state.streamCount || 4, 1);
+      setStreamFor(game.match_id, next);
       refresh();
     });
     node.appendChild(badge);
@@ -311,14 +311,16 @@ function render(data) {
   data.games.forEach((game, position) => el.grid.appendChild(tile(game, position)));
 }
 
-async function loadWallStatus() {
+async function loadViewerStatus() {
   try {
-    const wall = await (await fetch("/api/wall")).json();
-    state.wallEnabled = Boolean(wall.enabled) && !wall.error;
-    state.wallCount = wall.count ?? 4;
-    state.activeWallTile = wall.active ?? null;
+    const viewer = await (await fetch("/api/viewer")).json();
+    // No streams configured means clicking a game could do nothing useful, so
+    // the tiles stay unclickable rather than failing on every press.
+    state.viewerEnabled = (viewer.count ?? 0) > 0;
+    state.streamCount = viewer.count ?? 4;
+    state.activeStream = viewer.selected ?? null;
   } catch {
-    state.wallEnabled = false;
+    state.viewerEnabled = false;
   }
 }
 
@@ -380,7 +382,8 @@ window.addEventListener("resize", () => {
 });
 
 renderDelay();
-Promise.all([loadHeroes(), loadWallStatus()]).then(refresh);
+Promise.all([loadHeroes(), loadViewerStatus()]).then(refresh);
 setInterval(refresh, REFRESH_MS);
-// The wall can be started after the scoreboard, so keep checking for it.
-setInterval(loadWallStatus, 15000);
+// The viewer's selection can change from its own keyboard, so keep the
+// highlight on the scoreboard in step with it.
+setInterval(loadViewerStatus, 15000);

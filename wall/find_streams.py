@@ -3,18 +3,22 @@ streams.toml.
 
 Why this exists: on YouTube, concurrent TI streams are separate video IDs on the
 same channel, and those IDs change every day of the event. The "@channel/live"
-URL form only resolves to one of them. So each morning of the group stage:
+URL form only resolves to one of them -- and the viewer needs a concrete video
+id, since that form cannot be embedded at all. So each morning of the group
+stage:
 
-    python3 wall/find_streams.py              # official Dota 2 YouTube channel
-    python3 wall/find_streams.py -c @PGL      # some other channel
-    python3 wall/find_streams.py --twitch     # probe Twitch channel names instead
+    python wall/find_streams.py              # official Dota 2 YouTube channel
+    python wall/find_streams.py -c @PGL      # some other channel
+    python wall/find_streams.py --twitch     # probe Twitch channel names instead
 
-Runs on the Mac (needs yt-dlp, and streamlink for --twitch).
+Runs on the Windows box, alongside the scoreboard and viewer that consume
+streams.toml. Needs yt-dlp (in requirements.txt), and streamlink for --twitch.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import shutil
 import subprocess
@@ -45,19 +49,36 @@ TWITCH_CANDIDATES = TWITCH_ENGLISH + [
 ]
 
 
+def yt_dlp_command() -> list[str]:
+    """How to invoke yt-dlp here, as an argv prefix.
+
+    On the Mac it is a Homebrew binary on PATH. On Windows `pip install yt-dlp`
+    drops yt-dlp.exe into a Scripts directory that frequently is not on PATH,
+    so fall back to running the installed module through this interpreter --
+    which is the same package, just reached differently.
+    """
+    found = shutil.which("yt-dlp")
+    if found:
+        return [found]
+
+    if "yt_dlp" in sys.modules or importlib.util.find_spec("yt_dlp"):
+        return [sys.executable, "-m", "yt_dlp"]
+
+    sys.exit("yt-dlp not found. Install it with: pip install yt-dlp")
+
+
 def find_youtube_live(channel: str, timeout: float = 90.0) -> list[dict]:
     """Live videos on a channel's /streams tab, newest first."""
-    yt_dlp = shutil.which("yt-dlp") or "/usr/local/bin/yt-dlp"
     url = f"https://www.youtube.com/{channel.lstrip('/')}/streams"
 
     try:
         result = subprocess.run(
-            [yt_dlp, "--flat-playlist", "--dump-single-json",
+            [*yt_dlp_command(), "--flat-playlist", "--dump-single-json",
              "--playlist-end", "25", url],
             capture_output=True, text=True, timeout=timeout,
         )
     except FileNotFoundError:
-        sys.exit("yt-dlp not found. Install with: brew install yt-dlp")
+        sys.exit("yt-dlp not found. Install it with: pip install yt-dlp")
     except subprocess.TimeoutExpired:
         print(f"  timed out querying {url}", file=sys.stderr)
         return []

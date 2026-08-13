@@ -7,6 +7,12 @@ decoupled on purpose, so you can retune the delay mid-game without touching poll
 The delay is a per-request query parameter rather than server state. That keeps the
 server stateless, lets the small screen and a phone run different delays, and makes
 the client's localStorage the single source of truth for the setting.
+
+The viewer selection is the one deliberate exception. The delay is per-client *by
+design* - the table screen and a phone may legitimately want different offsets -
+whereas the selection is inherently a single shared value travelling from the
+scoreboard on the small screen to the viewer on the main screen. There is nowhere
+else for it to live.
 """
 
 from __future__ import annotations
@@ -16,7 +22,6 @@ import threading
 import time
 from pathlib import Path
 
-import requests
 from flask import Flask, jsonify, request, send_from_directory
 
 from scoreboard.config import Config, load_config
@@ -24,6 +29,7 @@ from scoreboard.delay import DelayBuffer
 from scoreboard.heroes import HeroIndex
 from scoreboard.models import parse_live_games
 from scoreboard.source import SourceError, ValveSource
+from scoreboard.streams import Stream, load_streams
 
 log = logging.getLogger(__name__)
 
@@ -82,11 +88,12 @@ class Poller(threading.Thread):
 
 
 def create_app(config: Config, source=None, heroes: HeroIndex | None = None,
-               start_poller: bool = True) -> Flask:
+               start_poller: bool = True, streams: list[Stream] | None = None) -> Flask:
     app = Flask(__name__, static_folder=None)
 
     source = source or ValveSource(config.require_key())
     heroes = heroes if heroes is not None else HeroIndex.load(source)
+    streams = streams if streams is not None else load_streams()
     buffer = DelayBuffer(retention_seconds=config.retention_seconds)
     poller = Poller(source, buffer, config)
 
@@ -94,6 +101,9 @@ def create_app(config: Config, source=None, heroes: HeroIndex | None = None,
     app.config["poller"] = poller
     app.config["heroes"] = heroes
     app.config["app_config"] = config
+    app.config["streams"] = streams
+    # None until the first click. The viewer shows stream 0 in the meantime.
+    app.config["selected_stream"] = None
 
     if start_poller:
         poller.start()
@@ -110,32 +120,36 @@ def create_app(config: Config, source=None, heroes: HeroIndex | None = None,
     def api_heroes():
         return jsonify(heroes.to_dict())
 
-    # ---- wall remote control -------------------------------------------
-    # Proxied rather than called from the browser: it keeps the Mac's address
-    # in one config file, avoids CORS, and means the page works even where the
-    # browser cannot resolve the Mac's tailnet name.
+    # ---- viewer selection ----------------------------------------------
+    # Which stream the main screen is showing. The scoreboard POSTs it, the
+    # viewer polls it. See the module docstring for why this is server state
+    # when the delay deliberately is not.
 
-    @app.get("/api/wall")
-    def api_wall_status():
-        if not config.wall_url:
-            return jsonify({"enabled": False})
-        try:
-            response = requests.get(f"{config.wall_url}/status", timeout=3)
-            return jsonify({"enabled": True, **response.json()})
-        except (requests.RequestException, ValueError) as exc:
-            return jsonify({"enabled": True, "error": str(exc)}), 502
+    @app.get("/viewer")
+    def viewer():
+        return send_from_directory(STATIC_DIR, "viewer.html")
 
-    @app.post("/api/wall/audio/<int:tile>")
-    def api_wall_audio(tile: int):
-        if not config.wall_url:
-            return jsonify({"error": "no wall configured; set [wall] url"}), 503
-        try:
-            response = requests.post(f"{config.wall_url}/audio/{tile}", timeout=3)
-            return jsonify(response.json()), response.status_code
-        except (requests.RequestException, ValueError) as exc:
-            # The wall being down must never break the scoreboard.
-            log.warning("wall control failed: %s", exc)
-            return jsonify({"error": f"wall unreachable: {exc}"}), 502
+    @app.get("/api/viewer")
+    def api_viewer():
+        return jsonify({
+            "selected": app.config["selected_stream"],
+            "count": len(streams),
+            "streams": [s.to_dict() for s in streams],
+        })
+
+    @app.post("/api/viewer/select/<int:index>")
+    def api_viewer_select(index: int):
+        if not 0 <= index < len(streams):
+            # Leave the previous selection alone: a bad click must not blank
+            # the main screen mid-game.
+            return jsonify({
+                "error": f"no stream {index}; {len(streams)} configured",
+                "selected": app.config["selected_stream"],
+            }), 400
+
+        # One atomic rebind, so no lock is needed. A lost race costs one poll.
+        app.config["selected_stream"] = index
+        return jsonify({"selected": index})
 
     @app.get("/api/games")
     def api_games():

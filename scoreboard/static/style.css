@@ -140,13 +140,13 @@ body {
 
 .tile.pregame { opacity: 0.72; }
 
-/* ---- wall control ---- */
+/* ---- viewer control ---- */
 
 .tile { position: relative; }
 .tile.clickable { cursor: pointer; }
 .tile.clickable:hover { border-color: var(--accent); }
 
-/* The tile whose stream currently has audio on the wall. */
+/* The tile whose stream is currently on the main screen. */
 .tile.audio {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
@@ -155,7 +155,7 @@ body {
 .tile.switching { opacity: 0.6; }
 .tile.failed { border-color: var(--dire); }
 
-.wall-badge {
+.stream-badge {
   position: absolute;
   top: calc(var(--unit) * 0.4);
   right: calc(var(--unit) * 0.4);
@@ -170,8 +170,8 @@ body {
   cursor: pointer;
   line-height: 1.5;
 }
-.wall-badge:hover { color: var(--text); border-color: var(--accent); }
-.tile.audio .wall-badge { color: var(--accent); border-color: var(--accent); }
+.stream-badge:hover { color: var(--text); border-color: var(--accent); }
+.tile.audio .stream-badge { color: var(--accent); border-color: var(--accent); }
 
 .teams {
   display: grid;

@@ -11,6 +11,7 @@ from scoreboard.heroes import HeroIndex
 from scoreboard.models import parse_live_games
 from scoreboard.server import create_app
 from scoreboard.source import SourceError
+from scoreboard.streams import Stream
 
 FIXTURE = Path(__file__).parent / "fixtures" / "live_league_games.json"
 TI_LEAGUE_ID = 18324
@@ -42,7 +43,6 @@ def config():
         retention_seconds=900.0,
         host="127.0.0.1",
         port=8000,
-        wall_url="",
     )
 
 
@@ -170,67 +170,89 @@ def test_zero_stream_delay_is_ignored_rather_than_trusted(app, client, payload):
     assert client.get("/api/games").get_json()["suggested_delay"] is None
 
 
-# ---- wall remote control ------------------------------------------------
-
-def test_wall_reports_disabled_when_no_url_configured(client):
-    assert client.get("/api/wall").get_json() == {"enabled": False}
-
-
-def test_clicking_a_tile_without_a_wall_is_a_clean_503(client):
-    response = client.post("/api/wall/audio/2")
-
-    assert response.status_code == 503
-    assert "wall" in response.get_json()["error"]
+# ---- viewer selection ---------------------------------------------------
+# The one piece of server state: which stream the main screen is showing. It
+# has to live here because it passes between two browsers on two screens.
 
 
-def test_wall_audio_is_forwarded_to_the_wall(config, monkeypatch):
-    import scoreboard.server as server_module
-
-    configured = Config(**{**config.__dict__, "wall_url": "http://wall.test:8777"})
-    sent = {}
-
-    class FakeResponse:
-        status_code = 200
-
-        def json(self):
-            return {"active": 2, "count": 4, "streams": ["a", "b", "c", "d"]}
-
-    def fake_post(url, timeout):
-        sent["url"] = url
-        return FakeResponse()
-
-    monkeypatch.setattr(server_module.requests, "post", fake_post)
-    app = create_app(configured, source=StubSource(payload={}),
-                     heroes=HeroIndex({}), start_poller=False)
-
-    response = app.test_client().post("/api/wall/audio/2")
-
-    assert sent["url"] == "http://wall.test:8777/audio/2"
-    assert response.get_json()["active"] == 2
+@pytest.fixture
+def viewer_app(config, payload):
+    """An app with a known stream list, so the tests don't depend on the real
+    streams.toml, whose video IDs change every day of the event."""
+    app = create_app(
+        config,
+        source=StubSource(payload=payload),
+        heroes=HeroIndex({}),
+        start_poller=False,
+        streams=[
+            Stream(index=0, kind="youtube", id="aaa", label="https://youtu.be/aaa"),
+            Stream(index=1, kind="youtube", id="bbb", label="https://youtu.be/bbb"),
+            Stream(index=2, kind="twitch", id="dota2ti_3", label="twitch.tv/dota2ti_3"),
+            Stream(index=3, kind="empty", id="", label="no stream configured"),
+        ],
+    )
+    return app
 
 
-def test_wall_being_unreachable_does_not_break_the_scoreboard(config, monkeypatch, payload):
-    """The Mac may be off. The scores must keep working regardless."""
-    import scoreboard.server as server_module
-    import requests as requests_module
+@pytest.fixture
+def viewer_client(viewer_app):
+    return viewer_app.test_client()
 
-    configured = Config(**{**config.__dict__, "wall_url": "http://wall.test:8777"})
 
-    def boom(*args, **kwargs):
-        raise requests_module.ConnectionError("no route to host")
+def test_viewer_starts_with_nothing_selected(viewer_client):
+    data = viewer_client.get("/api/viewer").get_json()
 
-    monkeypatch.setattr(server_module.requests, "post", boom)
-    monkeypatch.setattr(server_module.requests, "get", boom)
+    assert data["selected"] is None
+    assert data["count"] == 4
 
-    app = create_app(configured, source=StubSource(payload=payload),
-                     heroes=HeroIndex({}), start_poller=False)
-    client = app.test_client()
-    app.config["buffer"].append(parse_live_games(payload, TI_LEAGUE_ID), timestamp=time.time())
 
-    assert client.post("/api/wall/audio/1").status_code == 502
-    assert client.get("/api/wall").status_code == 502
-    # The part that matters:
-    assert len(client.get("/api/games?delay=0").get_json()["games"]) == 3
+def test_viewer_exposes_the_resolved_stream_list(viewer_client):
+    streams = viewer_client.get("/api/viewer").get_json()["streams"]
+
+    assert streams[0] == {"index": 0, "kind": "youtube", "id": "aaa",
+                          "label": "https://youtu.be/aaa"}
+    assert streams[3]["kind"] == "empty"
+
+
+def test_selecting_a_stream_is_reported_back_to_the_viewer(viewer_client):
+    assert viewer_client.post("/api/viewer/select/2").get_json()["selected"] == 2
+
+    assert viewer_client.get("/api/viewer").get_json()["selected"] == 2
+
+
+def test_an_out_of_range_selection_is_a_400(viewer_client):
+    assert viewer_client.post("/api/viewer/select/9").status_code == 400
+
+
+def test_a_rejected_selection_leaves_the_previous_one_showing(viewer_client):
+    """A bad click must not blank the main screen mid-game."""
+    viewer_client.post("/api/viewer/select/1")
+
+    viewer_client.post("/api/viewer/select/9")
+
+    assert viewer_client.get("/api/viewer").get_json()["selected"] == 1
+
+
+def test_an_empty_slot_can_still_be_selected(viewer_client):
+    """The viewer shows a labelled placeholder; rejecting it here would make an
+    unconfigured stream look like a broken scoreboard instead."""
+    assert viewer_client.post("/api/viewer/select/3").status_code == 200
+
+
+def test_selecting_streams_does_not_disturb_the_scores(viewer_app, viewer_client, payload):
+    """The scores are the part that must never break."""
+    seed(viewer_app, delay_ago=0, payload=payload)
+
+    viewer_client.post("/api/viewer/select/2")
+
+    assert len(viewer_client.get("/api/games?delay=0").get_json()["games"]) == 3
+
+
+def test_viewer_page_is_served(viewer_client):
+    response = viewer_client.get("/viewer")
+
+    assert response.status_code == 200
+    assert b"viewer.js" in response.data
 
 
 def test_heroes_endpoint_exposes_icons(client):

@@ -1,14 +1,17 @@
 # raspi_watch — TI viewing setup
 
-Watch all four concurrent TI streams at once, with a live scoreboard that does
-**not** spoil fights before you see them.
+Watch the TI streams with a live scoreboard that does **not** spoil fights before
+you see them, and switch the main screen between games by tapping them on a
+second screen.
 
-Two independent halves that share no state:
+Everything below runs on **this Windows box**. The Mac plays one permanent stream
+on the TV/projector and nothing here touches it.
 
-| Half | Runs on | Shows |
+| Piece | Runs on | Shows |
 |---|---|---|
-| **Wall** (`wall/`) | the Mac → TV/projector | four streams tiled 2x2, instant audio switching |
-| **Scoreboard** (`scoreboard/`) | this Windows box → small table screen | live scores for every game, held behind the broadcast |
+| **Main stream** | the Mac → TV/projector | one stream, started by hand. Not driven by this repo. |
+| **Viewer** (`/viewer`) | this box → main screen | whichever game you clicked, switched instantly |
+| **Scoreboard** (`/`) | this box → small table screen | live scores for every game, held behind the broadcast |
 
 TI 2026 group stage: **Aug 13–16**. Main event: **Aug 20–23**.
 
@@ -34,81 +37,159 @@ until a kill on screen and the tile ticking over happen together.
 
 ---
 
-## Wall (on the Mac)
+## Each morning of the event
 
-### One-time setup
-
-```sh
-brew install mpv yt-dlp streamlink
-```
-
-Already installed and verified: mpv 0.41.0, yt-dlp 2026.07.04, streamlink 8.5.0.
-
-### The four streams
-
-Valve's 2026-08-11 announcement named them, and the Twitch names hold for the
-whole event, so `wall/streams.toml` already has the real ones:
-`dota2ti`, `dota2ti_2`, `dota2ti_3`, `dota2ti_4` (English; `_cn`, `_ru`, `_es`
-variants follow the same A/B/C/D pattern). Nothing to do each morning.
-
-### Only if you use YouTube instead
-
-YouTube gets a single `youtube.com/dota2` link for all four, and each concurrent
-stream is its own video ID that **changes daily**. The `@channel/live` URL only
-ever resolves to one of them, so each morning:
-
-```sh
-ssh mac-ti
-cd ~/raspi_watch
-/usr/local/bin/python3.12 wall/find_streams.py          # official Dota 2 channel
-/usr/local/bin/python3.12 wall/find_streams.py --twitch # or probe Twitch names
-```
-
-It prints a ready-to-paste `streams = [...]` block. Put it in `wall/streams.toml`,
-then push and run:
+YouTube's four concurrent TI streams are four separate video IDs on one channel,
+and **they change every day**. The `@channel/live` URL only ever resolves to one
+of them, and cannot be embedded at all. So:
 
 ```powershell
-.\scripts\sync_to_mac.ps1
+python wall\find_streams.py            # official Dota 2 channel
+python wall\find_streams.py --twitch   # or probe the Twitch names instead
 ```
 
-```sh
-# in a Terminal ON THE MAC (hotkeys need a real terminal, and the windows need
-# a real desktop session — a plain non-interactive ssh command won't do)
-cd ~/raspi_watch && /usr/local/bin/python3.12 wall/wall.py
+It prints a ready-to-paste `streams = [...]` block. Put it in `wall/streams.toml`
+and restart the server.
+
+**YouTube is the configured path, not Twitch.** Twitch injects ads into the
+stream itself, so no client can strip them. The cost is this daily hunt —
+Twitch's channel names (`dota2ti`, `dota2ti_2`, `dota2ti_3`, `dota2ti_4`, plus
+`_cn` / `_ru` / `_es` variants) are stable for the whole event and are kept in
+`streams.toml` as a fallback.
+
+---
+
+## Setup
+
+```powershell
+pip install -r requirements.txt
 ```
 
-### Keys
+Put a free key from <https://steamcommunity.com/dev/apikey> into `config.toml`,
+or set `STEAM_API_KEY` in the environment (which wins over the file).
+
+Find TI's league id once it's live, and paste it into `config.toml`:
+
+```powershell
+python scripts\find_league.py
+```
+
+## Running it
+
+Two scripts, in this order:
+
+```powershell
+.\scripts\open_scoreboard.ps1   # starts the server, opens the scoreboard on the small screen
+.\scripts\open_viewer.ps1       # opens the viewer fullscreen on the main screen
+```
+
+`open_scoreboard.ps1` takes the secondary display, `open_viewer.ps1` takes the
+primary. Pass `-Display 2` to the viewer if it guesses wrong, and `-NoServer` to
+the scoreboard if the server is already up. Fullscreen matters on the small
+screen: in a normal window the taskbar clips the bottom row of tiles.
+
+Browser preference is Brave, then Edge, then Chrome — all Chromium, so the flags
+are identical. Override with `-Browser "C:\path\to\browser.exe"`.
+
+To run the server alone:
+
+```powershell
+python -m scoreboard.server
+```
+
+It binds `0.0.0.0`, so a phone on the same network works too — and different
+viewers can run different delays, since the delay is a per-client setting.
+
+---
+
+## Click a game to change the main screen
+
+Tap a game on the table screen and the main screen switches to that game's
+stream. The switch is instant: **every configured stream is loaded and playing
+from the moment the viewer opens**, muted and stacked behind the visible one, so
+selecting one is a change of which is on top rather than a load. That is the
+whole reason for doing this instead of opening a link — and the reason four
+streams are decoding at once.
+
+The tile currently on the main screen is outlined, and the `▶ n` badge says which
+stream each game is on.
+
+**About that badge:** nothing in Valve's data says which stream is showing which
+match — no field connects a Twitch/YouTube URL to a `match_id`. So the mapping
+cannot be derived, only stated. It defaults to screen position, which is correct
+whenever `wall/streams.toml` is ordered the same way as the scoreboard. When it
+isn't, click the badge to cycle it; your choice is remembered per match.
+
+### Sound
+
+The viewer starts **silent**, and there is nothing to fix: browsers only allow
+autoplay when muted, and only a click on the viewer window itself can turn sound
+on. So it asks once — click anywhere on the main screen — and from then on audio
+follows whatever you click on the scoreboard.
+
+Set the Mac's volume by hand to whatever you want alongside it. Nothing
+coordinates the two.
+
+### Viewer keys
 
 | Key | Does |
 |---|---|
-| `1`–`4` | move audio to that tile — instant, no reload |
-| `5` | fullscreen the tile that has audio |
-| `r` | respawn any dead tiles |
-| `q` | quit, killing every child process |
+| `1`–`4` | show that stream directly, without the scoreboard |
+| `M` | mute / unmute |
+| `F` | toggle fullscreen |
 
-### Useful flags
+### On the scoreboard
+
+- `−15s` / `+15s` adjust the delay (persisted in the browser)
+- `Drafts` toggles hero portraits — off by default, since 40 icons is too dense
+  on a small screen
+- `↻ Refresh` clears this browser's saved delay and draft settings and reloads
+  bypassing the cache. Use it if the delay looks wrong (it's remembered across
+  sessions, so an old value can linger) or the page has been open for days
+- The status line says `warming up` while there's less than `N` seconds of
+  history, and `STALE` if Valve's API stops responding. It never silently shows
+  fresher data than you asked for, and never blanks a tile — the last good
+  snapshot stays up.
+
+### Layout
+
+Scoreboard tiles are laid out by game count: 1 game fills the screen, 2–4 go in
+a 2x2, more spill into three columns. Four is the TI group-stage case and is what
+the sizing is tuned for. Verified on a 1440x900 secondary display.
+
+### If a stream slot is empty
+
+An unconfigured or unembeddable entry in `streams.toml` shows a labelled dark
+panel rather than failing, so it is obvious which of the four needs an ID. A
+broken `streams.toml` never stops the scoreboard from starting — the scores
+matter more than the video.
+
+---
+
+## Optional: the 2x2 wall on the Mac
+
+`wall/wall.py` tiles four streams 2x2 on the Mac with instant audio switching.
+It is **not part of the setup above** and nothing drives it remotely; it's kept
+as the fallback if you'd rather have the four-up wall on the projector than one
+stream. Run it in a Terminal on the Mac (hotkeys need a real terminal, and the
+windows need a real desktop session — a plain non-interactive ssh command won't
+do):
 
 ```sh
-python3.12 wall.py --list-displays   # which display is which
-python3.12 wall.py --dry-run         # print commands and geometry, spawn nothing
-python3.12 wall.py --screen 1        # force a display
+brew install mpv yt-dlp streamlink        # one-time
+cd ~/raspi_watch && /usr/local/bin/python3.12 wall/wall.py
 ```
 
-### Notes
+Keys: `1`–`4` move audio, `5` fullscreens the tile with audio, `r` respawns dead
+tiles, `q` quits. Flags: `--list-displays`, `--dry-run`, `--screen N`.
+
+Notes, all learned the hard way:
 
 - **Use `/usr/local/bin/python3.12`.** The Mac's default `python3` is 3.7, which
   has no `tomllib`.
 - Display auto-detection prefers an **external** display over the MacBook's own
   panel. Retina panels are converted to logical points — using their advertised
   pixel count puts three of the four tiles off-screen.
-- **YouTube is the configured path, not Twitch.** Twitch injects ads into the
-  stream itself, so no client can strip them — streamlink can only cut to a
-  lower-quality segment or stall while they run. YouTube has no equivalent
-  problem here because the wall is not a browser: `yt-dlp` resolves the media
-  manifest and mpv plays that, so there is no player page and no ad slot. No ad
-  blocker is involved or needed. The cost is that YouTube video IDs change
-  daily; Twitch channel names don't. Twitch entries still work and the announced
-  channel names are kept in `streams.toml` as a fallback.
 - YouTube tiles pass `--ytdl-raw-options=no-live-from-start=` so they open at
   the live edge. The opposite spelling makes yt-dlp build an EDL of DVR
   segments that mpv cannot open, and every tile dies ~4s in and respawns
@@ -124,102 +205,22 @@ python3.12 wall.py --screen 1        # force a display
 
 ---
 
-## Scoreboard (on this box)
-
-```powershell
-pip install -r requirements.txt
-```
-
-Put a free key from <https://steamcommunity.com/dev/apikey> into `config.toml`,
-or set `STEAM_API_KEY` in the environment (which wins over the file).
-
-Find TI's league id once it's live, and paste it into `config.toml`:
-
-```powershell
-python scripts\find_league.py
-```
-
-Run it and put it on the second screen in one step:
-
-```powershell
-.\scripts\open_scoreboard.ps1
-```
-
-That starts the server and opens the page fullscreen on the secondary display
-(falling back to the primary if there's only one). Use `-NoServer` if the server
-is already running. Fullscreen matters: in a normal window the taskbar clips the
-bottom row of tiles.
-
-Browser preference is Brave, then Edge, then Chrome — all Chromium, so the flags
-are identical. Override with `-Browser "C:\path\to\browser.exe"`.
-
-To run the server alone:
-
-```powershell
-python -m scoreboard.server
-```
-
-It binds `0.0.0.0`, so a phone on the same network works too — and different
-viewers can run different delays, since the delay is a per-client setting.
-
-### Layout
-
-Tiles are laid out by game count: 1 game fills the screen, 2–4 go in a 2x2,
-more spill into three columns. Four is the TI group-stage case and is what the
-sizing is tuned for. Verified on a 1440x900 secondary display.
-
-### Click a game to switch the wall's audio
-
-Tap a game on the table screen and the Mac moves its audio to that stream. Open
-the tunnel first and leave it running:
-
-```powershell
-.\scripts\wall_tunnel.ps1
-```
-
-The tile with audio is outlined, and the `▶ n` badge says which wall stream each
-game is on.
-
-**About that badge:** nothing in Valve's data says which stream is showing which
-match — no field connects a Twitch/YouTube URL to a `match_id`. So the mapping
-cannot be derived, only stated. It defaults to screen position, which is correct
-whenever `wall/streams.toml` is ordered the same way as the scoreboard. When it
-isn't, click the badge to cycle it; your choice is remembered per match.
-
-The wall being down never affects the scores — the click just reports an error.
-
-### On screen
-
-- `−15s` / `+15s` adjust the delay (persisted in the browser)
-- `Drafts` toggles hero portraits — off by default, since 40 icons is too dense
-  on a small screen
-- `↻ Refresh` clears this browser's saved delay and draft settings and reloads
-  bypassing the cache. Use it if the delay looks wrong (it's remembered across
-  sessions, so an old value can linger) or the page has been open for days
-- The status line says `warming up` while there's less than `N` seconds of
-  history, and `STALE` if Valve's API stops responding. It never silently shows
-  fresher data than you asked for, and never blanks a tile — the last good
-  snapshot stays up.
-
----
-
 ## Tests
 
 ```powershell
-python -m pytest tests/ -q     # 67 tests, no network needed
+python -m pytest tests/ -q     # 102 tests, no network needed
 ```
 
 Everything is tested against a recorded fixture, including the cases that
 actually break parsers during a real tournament: a game mid-draft with no
 `scoreboard` key, and a team with no registered name.
 
-The two things tests can't cover, both needing the live event:
+What tests can't cover, both needing the live event and a browser:
 
 1. Dialling the delay to match the broadcast.
-2. Sustained four-stream CPU/thermals on the Mac — soaked for 47 minutes on
-   2026-08-11 against YouTube live streams (see `MAC_START_HERE.md`). Still
-   unverified against the real Twitch streams, which take a different code
-   path through streamlink.
+2. That switching is actually seamless — that the hidden players keep buffering
+   and the swap shows no black frame. Browser autoplay and throttling behaviour
+   can only be confirmed on the real thing.
 
 ---
 
@@ -231,15 +232,18 @@ scoreboard/
   models.py      normalizes Valve's payload; the seam for an OpenDota fallback
   source.py      Valve Web API client
   heroes.py      hero_id -> name/icon, cached to disk
-  server.py      Flask app + background poller
-  static/        the page (no build step, no framework)
+  streams.py     streams.toml -> embeddable video IDs for the viewer
+  server.py      Flask app + background poller + the viewer selection
+  static/        the scoreboard and the viewer (no build step, no framework)
 wall/
-  wall.py        tiling, spawning, IPC audio switching
-  find_streams.py  daily stream discovery
-  streams.toml   the four streams + display choice
+  streams.toml   the four streams (read by the viewer AND the optional wall)
+  find_streams.py  the daily stream-ID hunt — run this on Windows
+  wall.py        the optional 2x2 Mac wall
 scripts/
-  find_league.py     discover TI's league id
-  sync_to_mac.ps1    push the wall to the Mac
+  find_league.py       discover TI's league id
+  open_scoreboard.ps1  scoreboard, fullscreen, second screen
+  open_viewer.ps1      viewer, fullscreen, main screen
+  sync_to_mac.ps1      push to the Mac (only needed for the optional wall)
 ```
 
 ## Why the Pi isn't in this

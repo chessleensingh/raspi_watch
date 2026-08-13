@@ -25,9 +25,6 @@ class Config:
     retention_seconds: float
     host: str
     port: int
-    wall_url: str
-    """Base URL of the wall's remote control on the Mac, e.g.
-    http://macbook-pro:8777. Empty disables tile-click stream switching."""
 
     def require_key(self) -> str:
         if not self.steam_api_key:
@@ -69,5 +66,4 @@ def load_config(path: Path | None = None) -> Config:
         retention_seconds=retention,
         host=server.get("host", "0.0.0.0"),
         port=int(server.get("port", 8000)),
-        wall_url=(data.get("wall", {}).get("url", "") or "").rstrip("/"),
     )
