@@ -48,8 +48,10 @@ python wall\find_streams.py            # official Dota 2 channel
 python wall\find_streams.py --twitch   # or probe the Twitch names instead
 ```
 
-It prints a ready-to-paste `streams = [...]` block. Put it in `wall/streams.toml`
-and restart the server.
+It prints a ready-to-paste `streams = [...]` block. Put it in `wall/streams.toml`,
+then **restart the server and reload the viewer**. Both are needed: the server
+reads the file once at startup, and the viewer builds its players once when the
+page loads. The 500ms polling carries only the selection, not the stream list.
 
 **YouTube is the configured path, not Twitch.** Twitch injects ads into the
 stream itself, so no client can strip them. The cost is this daily hunt —
@@ -156,6 +158,20 @@ coordinates the two.
 Scoreboard tiles are laid out by game count: 1 game fills the screen, 2–4 go in
 a 2x2, more spill into three columns. Four is the TI group-stage case and is what
 the sizing is tuned for. Verified on a 1440x900 secondary display.
+
+### If the viewer shows nothing
+
+The page builds its players once at load. If that fails, it stays up but deaf to
+the scoreboard, which looks like "clicking does nothing" rather than an error.
+
+The quickest check is the server log: a working page sends about 20
+`GET /api/viewer` per 10 seconds. Zero means the page never finished starting.
+
+The known cause was YouTube's `iframe_api` script being blocked by Brave
+Shields, which is why the viewer now drives the embeds over `postMessage` with
+no third-party script at all. If it ever recurs, suspect Shields blocking the
+embed frames themselves, and turn Shields down for `localhost` in the viewer's
+own Brave profile.
 
 ### If a stream slot is empty
 
