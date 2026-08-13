@@ -18,6 +18,7 @@ else for it to live.
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 import time
 from pathlib import Path
@@ -26,6 +27,7 @@ from flask import Flask, jsonify, request, send_from_directory
 
 from scoreboard.config import Config, load_config
 from scoreboard.delay import DelayBuffer
+from scoreboard.demo import DemoSource
 from scoreboard.heroes import HeroIndex
 from scoreboard.models import parse_live_games
 from scoreboard.source import SourceError, ValveSource
@@ -215,14 +217,44 @@ def create_app(config: Config, source=None, heroes: HeroIndex | None = None,
     return app
 
 
+def prewarm(app, source, config, span_seconds: float = 600.0, step: float = 15.0) -> None:
+    """Backfill the buffer with backdated snapshots.
+
+    Without this a fresh server shows "warming up" and an empty board until it
+    has accumulated `delay` seconds of history -- two minutes of nothing, which
+    makes demo mode useless for the thing it exists for. Backdating costs
+    nothing because the source can answer for any moment.
+    """
+    buffer = app.config["buffer"]
+    now = time.time()
+    for age in range(int(span_seconds), 0, -int(step)):
+        games = parse_live_games(source.fetch_live_games(), league_id=config.league_id)
+        buffer.append(games, timestamp=now - age)
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
     config = load_config()
-    app = create_app(config)
 
-    if config.league_id is None:
+    demo = "--demo" in sys.argv
+    if demo:
+        # Stand-in games, for when Valve is publishing none. See scoreboard/demo.py.
+        source = DemoSource(league_id=config.league_id)
+        # The poller is held back until the backdated history is in: the buffer
+        # rejects out-of-order timestamps, and a live snapshot landing first
+        # would make every backdated one look like time running backwards.
+        app = create_app(config, source=source, heroes=HeroIndex.load(source),
+                         start_poller=False)
+        prewarm(app, source, config)
+        app.config["poller"].start()
+        log.warning("DEMO MODE - the games on screen are invented, not live")
+    else:
+        source = None
+        app = create_app(config)
+
+    if config.league_id is None and not demo:
         log.warning(
             "No league_id set - showing every live league game. Run "
             "`python scripts/find_league.py` during TI to find its id."
