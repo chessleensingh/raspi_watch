@@ -33,19 +33,28 @@ class Stream:
     """A YouTube video id, or a Twitch channel name. Empty when kind is "empty"."""
     label: str
     """What the viewer shows in the corner, so a wrong slot is obvious on sight."""
+    title: str = ""
+    """The broadcast's own title, e.g. "[EN-A] Team Falcons vs. LGD Gaming".
+
+    Valve's game payload carries nothing identifying which stream is showing a
+    match, but the stream's title names the teams -- so this is the only thread
+    connecting the two, and it is what lets the scoreboard map a game to its
+    stream instead of guessing from screen position."""
 
     def to_dict(self) -> dict:
         return asdict(self)
 
 
-def _resolve(entry: str, index: int) -> Stream:
+def _resolve(entry: str, index: int, title: str = "") -> Stream:
     entry = entry.strip()
     if not entry:
-        return Stream(index=index, kind="empty", id="", label="no stream configured")
+        return Stream(index=index, kind="empty", id="", label="no stream configured",
+                      title=title)
 
     if not entry.startswith("http"):
         # Matches wall.py's convention: a bare name is a Twitch channel.
-        return Stream(index=index, kind="twitch", id=entry, label=f"twitch.tv/{entry}")
+        return Stream(index=index, kind="twitch", id=entry,
+                      label=f"twitch.tv/{entry}", title=title)
 
     parsed = urlparse(entry)
     host = parsed.netloc.lower()
@@ -53,16 +62,19 @@ def _resolve(entry: str, index: int) -> Stream:
     if "youtu.be" in host:
         video_id = parsed.path.lstrip("/")
         if video_id:
-            return Stream(index=index, kind="youtube", id=video_id, label=entry)
+            return Stream(index=index, kind="youtube", id=video_id, label=entry,
+                          title=title)
 
     if "youtube.com" in host:
         # Only ?v= carries an embeddable id. /@channel/live resolves to a
         # different video every day and cannot be embedded, so it lands below.
         video_id = parse_qs(parsed.query).get("v", [""])[0]
         if video_id:
-            return Stream(index=index, kind="youtube", id=video_id, label=entry)
+            return Stream(index=index, kind="youtube", id=video_id, label=entry,
+                          title=title)
 
-    return Stream(index=index, kind="empty", id="", label=f"cannot embed: {entry}")
+    return Stream(index=index, kind="empty", id="", label=f"cannot embed: {entry}",
+                  title=title)
 
 
 def load_streams(path: Path | None = None) -> list[Stream]:
@@ -83,4 +95,14 @@ def load_streams(path: Path | None = None) -> list[Stream]:
     if not isinstance(entries, list):
         return []
 
-    return [_resolve(str(entry), index) for index, entry in enumerate(entries)]
+    # Optional, and optional-length: files written before titles existed must
+    # still load, and a partial list must not shorten the stream list.
+    titles = data.get("titles")
+    if not isinstance(titles, list):
+        titles = []
+
+    return [
+        _resolve(str(entry), index,
+                 str(titles[index]) if index < len(titles) else "")
+        for index, entry in enumerate(entries)
+    ]

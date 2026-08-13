@@ -29,6 +29,7 @@ const state = {
   viewerEnabled: false,
   streamCount: 4,
   activeStream: null,
+  streams: [],
   showDrafts: localStorage.getItem("showDrafts") === "true",
   heroes: {},
 };
@@ -153,12 +154,44 @@ function networthRow(game) {
  * by match_id and remembered, defaulting to the game's position on screen,
  * which is right whenever streams.toml is ordered the same way.
  */
+/* Normalize a team name for comparison against a stream title. Broadcast
+   titles punctuate differently to Valve's team names -- "LGD Gaming" against
+   "PSG.LGD", "Nigma Galaxy " with a trailing space -- so compare on letters
+   and digits only. */
+function nameKey(name) {
+  return (name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/* Which stream a game is on, by matching team names against the stream title.
+   "[EN-A] Team Falcons vs. LGD Gaming - The International 2026" names both
+   teams, so a game whose two names both appear in one title is on that stream.
+   Requiring BOTH avoids matching the wrong game of a team playing twice. */
+function matchStreamByTitle(game) {
+  const radiant = nameKey(game.radiant.name);
+  const dire = nameKey(game.dire.name);
+  if (!radiant || !dire) return null;
+
+  for (const stream of state.streams) {
+    const title = nameKey(stream.title);
+    if (!title) continue;
+    if (title.includes(radiant) && title.includes(dire)) return stream.index;
+  }
+  return null;
+}
+
 function streamFor(game, position) {
+  /* An explicit choice always wins: the badge exists precisely for when the
+     automatic answer is wrong, and it must not be silently overridden. */
   const saved = JSON.parse(localStorage.getItem("streamMap") || "{}");
+  if (saved[game.match_id] !== undefined) return saved[game.match_id];
+
+  const matched = matchStreamByTitle(game);
+  if (matched !== null) return matched;
+
   const count = Math.max(state.streamCount || 4, 1);
   // Wrap: with league_id unset there can be more live games than streams, and
   // a default of "position" would point at one that does not exist.
-  return saved[game.match_id] ?? position % count;
+  return position % count;
 }
 
 function setStreamFor(matchId, index) {
@@ -325,6 +358,7 @@ async function loadViewerStatus() {
     // the tiles stay unclickable rather than failing on every press.
     state.viewerEnabled = (viewer.count ?? 0) > 0;
     state.streamCount = viewer.count ?? 4;
+    state.streams = viewer.streams ?? [];
     state.activeStream = viewer.selected ?? null;
   } catch {
     state.viewerEnabled = false;
@@ -373,6 +407,11 @@ el.hardRefresh.addEventListener("click", async () => {
   el.hardRefresh.textContent = "reloading...";
   localStorage.removeItem("delaySeconds");
   localStorage.removeItem("showDrafts");
+  /* Also the game-to-stream overrides. A choice made by hand outranks the
+     title matching, correctly -- but that means a badge cycled before the
+     matching existed keeps winning forever, and there would otherwise be no
+     way to hand control back. */
+  localStorage.removeItem("streamMap");
   try {
     await fetch("/static/app.js", { cache: "reload" });
     await fetch("/static/style.css", { cache: "reload" });

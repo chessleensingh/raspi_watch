@@ -109,5 +109,53 @@ def test_to_dict_is_json_ready_for_the_viewer(tmp_path):
     path = write_streams(tmp_path, ["https://youtu.be/abc"])
 
     assert load_streams(path)[0].to_dict() == {
-        "index": 0, "kind": "youtube", "id": "abc", "label": "https://youtu.be/abc"
+        "index": 0, "kind": "youtube", "id": "abc",
+        "label": "https://youtu.be/abc", "title": "",
     }
+
+
+# ---- titles -------------------------------------------------------------
+# Valve's game payload has no field naming the stream, but the STREAM's title
+# names the teams: "[EN-A] Team Falcons vs. LGD Gaming - The International...".
+# Carrying that through is what lets a game be matched to its stream instead of
+# guessed from screen position.
+
+
+def test_titles_are_paired_with_streams_by_position(tmp_path):
+    path = tmp_path / "streams.toml"
+    path.write_text(
+        'streams = [ "https://youtu.be/aaa", "https://youtu.be/bbb" ]\n'
+        'titles = [ "[EN-A] Team Falcons vs. LGD Gaming", "[EN-B] Nigma vs Iron Wing" ]\n',
+        encoding="utf-8")
+
+    streams = load_streams(path)
+
+    assert streams[0].title == "[EN-A] Team Falcons vs. LGD Gaming"
+    assert streams[1].title == "[EN-B] Nigma vs Iron Wing"
+
+
+def test_a_missing_titles_list_is_not_an_error(tmp_path):
+    """streams.toml files written before titles existed must still load."""
+    path = write_streams(tmp_path, ["https://youtu.be/aaa"])
+
+    assert load_streams(path)[0].title == ""
+
+
+def test_fewer_titles_than_streams_leaves_the_rest_blank(tmp_path):
+    path = tmp_path / "streams.toml"
+    path.write_text(
+        'streams = [ "https://youtu.be/aaa", "https://youtu.be/bbb" ]\n'
+        'titles = [ "only the first" ]\n', encoding="utf-8")
+
+    streams = load_streams(path)
+
+    assert streams[0].title == "only the first"
+    assert streams[1].title == ""
+
+
+def test_title_is_exposed_to_the_client(tmp_path):
+    path = tmp_path / "streams.toml"
+    path.write_text('streams = [ "https://youtu.be/aaa" ]\ntitles = [ "[EN-A] X vs Y" ]\n',
+                    encoding="utf-8")
+
+    assert load_streams(path)[0].to_dict()["title"] == "[EN-A] X vs Y"

@@ -210,7 +210,7 @@ def test_viewer_exposes_the_resolved_stream_list(viewer_client):
     streams = viewer_client.get("/api/viewer").get_json()["streams"]
 
     assert streams[0] == {"index": 0, "kind": "youtube", "id": "aaa",
-                          "label": "https://youtu.be/aaa"}
+                          "label": "https://youtu.be/aaa", "title": ""}
     assert streams[3]["kind"] == "empty"
 
 

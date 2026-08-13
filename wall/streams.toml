@@ -35,10 +35,20 @@
 #
 # and paste what it prints over the four entries below.
 streams = [
-  "https://www.youtube.com/@dota2/live",
-  "",
-  "",
-  "",
+  "https://www.youtube.com/watch?v=nU5mLup2s7Q",
+  "https://www.youtube.com/watch?v=VaZpuoMhjmg",
+  "https://www.youtube.com/watch?v=2Cl9jwviUfQ",
+  "https://www.youtube.com/watch?v=giB1GPD9YBs",
+]
+
+# The broadcast titles, in the same order. These are what let the
+# scoreboard work out which stream a game is on: Valve's payload names
+# no stream, but the title names both teams. Printed by find_streams.py.
+titles = [
+  "[EN-A] Team Falcons vs. LGD Gaming - The International 2026 - Group Stage - Round 1",
+  "[EN-B] Nigma Galaxy vs. Iron Wing - The International 2026 - Group Stage - Round 1",
+  "[EN-C] BoomBoys vs. OG - The International 2026 - Group Stage - Round 1",
+  "[EN-D] TEAM VISION vs. Team Resilience - The International 2026 - Group Stage - Round 1",
 ]
 
 # FALLBACK ONLY - the Twitch names Valve announced on 2026-08-11. These are

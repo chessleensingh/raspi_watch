@@ -147,7 +147,7 @@ def probe_twitch(candidates: list[str], timeout: float = 20.0) -> list[str]:
     return live
 
 
-def print_toml_block(entries: list[str]) -> None:
+def print_toml_block(entries: list[str], titles: list[str] | None = None) -> None:
     print("\nPaste this into wall/streams.toml:\n")
     print("streams = [")
     for entry in entries[:4]:
@@ -155,6 +155,20 @@ def print_toml_block(entries: list[str]) -> None:
     for _ in range(max(0, 4 - len(entries))):
         print('  "",')
     print("]")
+
+    # The titles are what let the scoreboard work out which stream a game is on.
+    # Valve's payload names no stream, but "[EN-A] Team Falcons vs. LGD Gaming"
+    # names both teams. Without them the mapping falls back to screen position,
+    # which is right only if the scoreboard happens to list games in stream
+    # order -- and it does not, since Valve returns them in its own.
+    if titles:
+        print("\ntitles = [")
+        for title in titles[:4]:
+            print(f'  "{printable(title).replace(chr(34), chr(39))}",')
+        for _ in range(max(0, 4 - len(titles))):
+            print('  "",')
+        print("]")
+
     if len(entries) > 4:
         print(f"\n({len(entries)} live streams found; only the first 4 fit the 2x2 wall.)")
 
@@ -184,6 +198,7 @@ def main() -> int:
 
     channels = args.channels or DEFAULT_CHANNELS
     found: list[str] = []
+    found_titles: list[str] = []
 
     for channel in channels:
         print(f"Checking youtube.com/{channel.lstrip('/')}/streams ...")
@@ -196,6 +211,7 @@ def main() -> int:
             print(f"  LIVE  {stream['url']}   {viewers} watching")
             print(f"        {printable(stream['title'][:90])}")
             found.append(stream["url"])
+            found_titles.append(stream["title"])
         print()
 
     if not found:
@@ -204,7 +220,7 @@ def main() -> int:
         print("or fall back to Twitch with:  --twitch")
         return 0
 
-    print_toml_block(found)
+    print_toml_block(found, found_titles)
     return 0
 
 
