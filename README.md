@@ -44,14 +44,21 @@ and **they change every day**. The `@channel/live` URL only ever resolves to one
 of them, and cannot be embedded at all. So:
 
 ```powershell
-python wall\find_streams.py            # official Dota 2 channel
-python wall\find_streams.py --twitch   # or probe the Twitch names instead
+python wall\find_streams.py --write    # writes the four English streams itself
 ```
 
-It prints a ready-to-paste `streams = [...]` block. Put it in `wall/streams.toml`,
-then **restart the server and reload the viewer**. Both are needed: the server
-reads the file once at startup, and the viewer builds its players once when the
-page loads. The 500ms polling carries only the selection, not the stream list.
+Then press **`R`** on the viewer. That is the whole routine — no restart, and
+nothing edited by hand.
+
+`--write` picks the four **English** streams by their `[EN-A]`..`[EN-D]` title
+prefix, because yt-dlp returns every language in no useful order and "the first
+four" is a mix of English, Russian and Chinese. It replaces only the two arrays,
+leaves the rest of the file alone, and validates the result before writing —
+editing this file by hand broke it twice, and a malformed `streams.toml` shows
+up on screen as "no streams configured", which points nowhere near the mistake.
+
+Without `--write` it prints the blocks for you to paste instead, and `--twitch`
+probes the Twitch channel names.
 
 **YouTube is the configured path, not Twitch.** Twitch injects ads into the
 stream itself, so no client can strip them. The cost is this daily hunt —
