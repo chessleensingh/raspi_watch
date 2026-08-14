@@ -39,6 +39,25 @@ _SCORE_RATES = [(38.0, 51.0), (61.0, 44.0), (47.0, 47.0), (72.0, 96.0)]
 # "from Valve" and the spoiler guard behaves as it will on live data.
 STREAM_DELAY_SECONDS = 120
 
+# Scripted so each tile demonstrates one thing, with a plain fourth as a
+# control -- a demo where every tile is lit up shows nothing.
+RAPIER_ITEM_ID = 133
+AEGIS_ITEM_ID = 117
+SMOKE_ITEM_ID = 188
+
+# Game 3's smoke is bought and used on a loop, because the haze fires on a smoke
+# LEAVING an inventory. A demo that only ever holds one would never show it.
+# Tuned against how the detection actually works, not by feel. The server
+# compares two snapshots exactly SMOKE_WINDOW_SECONDS (40s) apart and flags a
+# DROP, so the haze is on only while the older sample holds a smoke and the
+# newer does not. Making the hold exactly half the period puts those two samples
+# permanently out of phase, which is the most a square wave can give: on half
+# the time, alternating every 40s. A shorter hold looked more "realistic" and
+# fired under a fifth of the time -- a demo you have to wait around for does not
+# get shown.
+SMOKE_PERIOD = 80.0
+SMOKE_HELD_FOR = 40.0
+
 _HEROES = [
     (1, "npc_dota_hero_antimage"), (8, "npc_dota_hero_juggernaut"),
     (11, "npc_dota_hero_nevermore"), (14, "npc_dota_hero_pudge"),
@@ -46,6 +65,21 @@ _HEROES = [
     (25, "npc_dota_hero_lina"), (35, "npc_dota_hero_sniper"),
     (44, "npc_dota_hero_phantom_assassin"), (74, "npc_dota_hero_invoker"),
 ]
+
+
+def _scripted_item(index: int, side: int, seconds: float) -> int:
+    """The one showcase item this side is holding, or 0.
+
+    Tile 1 a Rapier, tile 2 an Aegis, tile 3 a Smoke that comes and goes, tile 4
+    nothing at all.
+    """
+    if index == 0 and side == 0:
+        return RAPIER_ITEM_ID
+    if index == 1 and side == 1:
+        return AEGIS_ITEM_ID
+    if index == 2 and side == 0:
+        return SMOKE_ITEM_ID if (seconds % SMOKE_PERIOD) < SMOKE_HELD_FOR else 0
+    return 0
 
 
 def _side(index: int, side: int, seconds: float) -> dict:
@@ -60,8 +94,14 @@ def _side(index: int, side: int, seconds: float) -> dict:
         "tower_state": 2047,
         "barracks_state": 63,
         "players": [
-            {"hero_id": _HEROES[(index * 5 + side * 2 + p) % len(_HEROES)][0],
-             "net_worth": int(base * (1.0 + 0.14 * p))}
+            {
+                "hero_id": _HEROES[(index * 5 + side * 2 + p) % len(_HEROES)][0],
+                "net_worth": int(base * (1.0 + 0.14 * p)),
+                # The showcase item rides on the first player, so the Rapier
+                # outline lands on a hero that is actually in the draft column.
+                "item0": _scripted_item(index, side, seconds) if p == 0 else 0,
+                **{f"item{slot}": 0 for slot in range(1, 6)},
+            }
             for p in range(5)
         ],
         "picks": [{"hero_id": _HEROES[(index * 5 + side * 3 + p) % len(_HEROES)][0]}
@@ -79,10 +119,26 @@ class DemoSource:
         self._started = now()
 
     def fetch_live_games(self) -> dict:
-        elapsed = max(0.0, self._now() - self._started)
+        return self.payload_at(self._now())
+
+    def payload_at(self, moment: float) -> dict:
+        """The world as it looked at `moment`.
+
+        Backfilled history has to differ per snapshot. Generating every
+        backdated snapshot from "now" makes them identical, and the smoke haze
+        -- which fires on a CHANGE between two snapshots -- can then never
+        trigger, in a mode built to demonstrate exactly that.
+        """
+        # NOT clamped at zero. Backfill asks about moments before this source
+        # was constructed, and clamping made every one of them identical -- so
+        # nothing ever changed between snapshots and the smoke haze, which fires
+        # on exactly that change, could never trigger.
+        elapsed = moment - self._started
         games = []
         for index, (radiant, dire) in enumerate(MATCHUPS):
-            seconds = _OFFSETS[index] + elapsed
+            # Clamp the CLOCK instead, per game: a match cannot have started
+            # before 00:00 however far back you ask.
+            seconds = max(0.0, _OFFSETS[index] + elapsed)
             games.append({
                 "match_id": 9000000000 + index,
                 "league_id": self.league_id,

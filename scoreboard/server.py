@@ -280,9 +280,15 @@ def prewarm(app, source, config, span_seconds: float = 600.0, step: float = 15.0
     """
     buffer = app.config["buffer"]
     now = time.time()
+    # Ask the source what the world looked like AT each backdated moment, not
+    # what it looks like now. Identical history detects no change, and the smoke
+    # haze fires on a change -- so without this the demo cannot show it.
+    at_moment = getattr(source, "payload_at", None)
     for age in range(int(span_seconds), 0, -int(step)):
-        games = parse_live_games(source.fetch_live_games(), league_id=config.league_id)
-        buffer.append(games, timestamp=now - age)
+        moment = now - age
+        payload = at_moment(moment) if at_moment else source.fetch_live_games()
+        buffer.append(parse_live_games(payload, league_id=config.league_id),
+                      timestamp=moment)
 
 
 def main() -> None:

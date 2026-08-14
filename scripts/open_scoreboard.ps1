@@ -9,7 +9,8 @@
 param(
     [switch]$NoServer,
     [int]$Port = 8000,
-    [string]$Browser = ""
+    [string]$Browser = "",
+    [string]$Query = ""   # e.g. "?drafts=1"
 )
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -83,7 +84,7 @@ if (Test-Path $profileDir) {
 Start-Process $browser -ArgumentList @(
     "--user-data-dir=`"$profileDir`"",
     "--new-window",
-    "--app=http://localhost:$Port",
+    "--app=http://localhost:$Port/$Query",
     "--window-position=$($b.X),$($b.Y)",
     "--window-size=$($b.Width),$($b.Height)",
     "--no-first-run",

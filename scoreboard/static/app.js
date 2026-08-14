@@ -30,7 +30,11 @@ const state = {
   streamCount: 4,
   activeStream: null,
   streams: [],
-  showDrafts: localStorage.getItem("showDrafts") === "true",
+  /* ?drafts=1 preloads the toggle, for opening the page in a known state --
+     a screenshare or a demo should not start by hunting for a checkbox. */
+  showDrafts: new URLSearchParams(location.search).has("drafts")
+    ? new URLSearchParams(location.search).get("drafts") !== "0"
+    : localStorage.getItem("showDrafts") === "true",
   heroes: {},
 };
 
