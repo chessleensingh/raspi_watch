@@ -217,9 +217,18 @@ async function selectStream(index, node) {
   }
 }
 
+/* Rapier beats Aegis when a game has both.
+   An Aegis drops every Roshan and is routine; a Rapier is the game turning over
+   on one item, and that is the tile you want to be looking at. */
+function alertClass(game) {
+  if (game.radiant.has_rapier || game.dire.has_rapier) return " rapier";
+  if (game.radiant.has_aegis || game.dire.has_aegis) return " aegis";
+  return "";
+}
+
 function tile(game, position) {
   const node = document.createElement("article");
-  node.className = "tile" + (game.in_progress ? "" : " pregame");
+  node.className = "tile" + (game.in_progress ? "" : " pregame") + alertClass(game);
 
   const stream = streamFor(game, position);
   node.dataset.stream = stream;

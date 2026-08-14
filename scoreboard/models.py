@@ -14,6 +14,11 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+# Valve's item ids, confirmed against Dota's own item constants rather than
+# recalled. These two are the moments worth looking up from your phone for.
+RAPIER_ITEM_ID = 133
+AEGIS_ITEM_ID = 117
+
 
 @dataclass(frozen=True)
 class Side:
@@ -30,6 +35,19 @@ class Side:
     bans: tuple[int, ...] = ()
     tower_state: int = 0
     barracks_state: int = 0
+    items: tuple[int, ...] = ()
+    """Every item id held across this side's five players, all six slots each.
+
+    Kept flat because nothing here cares WHO holds a Rapier, only that the game
+    now has one in it."""
+
+    @property
+    def has_rapier(self) -> bool:
+        return RAPIER_ITEM_ID in self.items
+
+    @property
+    def has_aegis(self) -> bool:
+        return AEGIS_ITEM_ID in self.items
 
 
 @dataclass(frozen=True)
@@ -76,6 +94,11 @@ class Game:
         data["series_score"] = self.series_score
         side, amount = self.net_worth_lead
         data["net_worth_lead"] = {"side": side, "amount": amount}
+        # Properties are not fields, so asdict misses them.
+        for name in ("radiant", "dire"):
+            source = getattr(self, name)
+            data[name]["has_rapier"] = source.has_rapier
+            data[name]["has_aegis"] = source.has_aegis
         return data
 
 
@@ -98,6 +121,12 @@ def _parse_side(game: dict, board: dict | None, side: str) -> Side:
         bans=tuple(b["hero_id"] for b in board_side.get("bans") or [] if "hero_id" in b),
         tower_state=board_side.get("tower_state") or 0,
         barracks_state=board_side.get("barracks_state") or 0,
+        # item0..item5 per player. An id of 0 means an empty slot.
+        items=tuple(
+            item for p in players
+            for item in (p.get(f"item{slot}") or 0 for slot in range(6))
+            if item
+        ),
     )
 
 

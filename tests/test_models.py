@@ -138,3 +138,83 @@ def test_game_is_json_serializable(payload):
 
     encoded = json.dumps(game.to_dict())
     assert json.loads(encoded)["radiant"]["name"] == "Team Spirit"
+
+
+# ---- big-moment items ---------------------------------------------------
+# A Divine Rapier or an Aegis changes how you watch a game, and both are in the
+# payload already: every player carries item0..item5. Surfacing them lets the
+# tile shout, so you look up at the right game rather than finding out later.
+
+RAPIER = 133
+AEGIS = 117
+
+
+def game_with_items(radiant_items=(), dire_items=()):
+    """A minimal live payload with given items in each side's first player."""
+    def player(items):
+        slots = {f"item{i}": (items[i] if i < len(items) else 0) for i in range(6)}
+        return {"hero_id": 1, "net_worth": 100, **slots}
+
+    return {"result": {"games": [{
+        "match_id": 1, "league_id": 7, "spectators": 0,
+        "radiant_team": {"team_name": "R"}, "dire_team": {"team_name": "D"},
+        "scoreboard": {
+            "duration": 600,
+            "radiant": {"score": 1, "players": [player(radiant_items)]},
+            "dire": {"score": 2, "players": [player(dire_items)]},
+        },
+    }]}}
+
+
+def test_no_special_items_means_no_flags():
+    game = parse_live_games(game_with_items(), 7)[0]
+
+    assert game.radiant.has_rapier is False
+    assert game.radiant.has_aegis is False
+    assert game.dire.has_rapier is False
+
+
+def test_a_rapier_is_seen_on_the_side_holding_it():
+    game = parse_live_games(game_with_items(radiant_items=[RAPIER]), 7)[0]
+
+    assert game.radiant.has_rapier is True
+    assert game.dire.has_rapier is False
+
+
+def test_an_aegis_is_seen_on_the_side_holding_it():
+    game = parse_live_games(game_with_items(dire_items=[AEGIS]), 7)[0]
+
+    assert game.dire.has_aegis is True
+    assert game.radiant.has_aegis is False
+
+
+def test_an_item_is_found_in_any_slot():
+    """Rapiers get shuffled around the inventory and into the backpack."""
+    game = parse_live_games(game_with_items(radiant_items=[0, 0, 0, 0, 0, RAPIER]), 7)[0]
+
+    assert game.radiant.has_rapier is True
+
+
+def test_both_sides_can_hold_a_rapier():
+    game = parse_live_games(game_with_items([RAPIER], [RAPIER]), 7)[0]
+
+    assert game.radiant.has_rapier and game.dire.has_rapier
+
+
+def test_flags_reach_the_client():
+    game = parse_live_games(game_with_items(radiant_items=[RAPIER], dire_items=[AEGIS]), 7)[0]
+
+    data = game.to_dict()
+    assert data["radiant"]["has_rapier"] is True
+    assert data["dire"]["has_aegis"] is True
+
+
+def test_a_game_with_no_scoreboard_has_no_items():
+    """Draft phase: there is no scoreboard key at all."""
+    payload = {"result": {"games": [{
+        "match_id": 1, "league_id": 7,
+        "radiant_team": {"team_name": "R"}, "dire_team": {"team_name": "D"},
+    }]}}
+
+    game = parse_live_games(payload, 7)[0]
+    assert game.radiant.has_rapier is False

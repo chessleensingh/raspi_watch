@@ -305,3 +305,39 @@ body {
   text-align: center;
   padding: var(--unit);
 }
+
+/* ---- big-moment alerts ----
+   A Rapier or an Aegis is the reason to look up at a particular game, and these
+   ride the delay buffer like everything else -- the border lights up when the
+   item reaches YOUR screen, not when Valve's API sees it, so it cannot spoil
+   the moment it is announcing.
+
+   Applied to the whole tile rather than one side: from across a room you want
+   to know WHICH GAME, and you will read who from the picture. */
+.tile.aegis {
+  border-color: #d8a01f;
+  box-shadow: inset 0 0 0 1px #d8a01f, 0 0 calc(var(--unit) * 0.7) rgba(216, 160, 31, 0.35);
+}
+
+.tile.rapier {
+  border-color: #e0453a;
+  box-shadow: inset 0 0 0 1px #e0453a, 0 0 calc(var(--unit) * 0.9) rgba(224, 69, 58, 0.45);
+  /* A rapier can decide a game in seconds; a still border is easy to miss. */
+  animation: rapier-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes rapier-pulse {
+  50% {
+    box-shadow: inset 0 0 0 1px #ff6a5f,
+                0 0 calc(var(--unit) * 1.6) rgba(224, 69, 58, 0.75);
+  }
+}
+
+/* The audio outline still has to win: it says which stream you are listening
+   to, which is about the setup rather than the game, and losing track of that
+   is more confusing than missing a border colour. */
+.tile.audio { border-color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tile.rapier { animation: none; }
+}
