@@ -253,14 +253,42 @@ body {
 
 /* ---- draft ---- */
 
-.draft { display: flex; justify-content: space-between; gap: calc(var(--unit) * 0.3); }
-.draft-side { display: flex; gap: 2px; }
+/* Ten portraits have to fit the tile's width, whatever that is.
+   They used to be a fixed 2.1 units each: ten of those is 21 units against a
+   tile about 19 wide, so they always overflowed and the tile's overflow:hidden
+   quietly clipped the last pick or two. Sizing from the space available instead
+   of a constant means the arithmetic cannot come out wrong again. */
+.draft {
+  display: flex;
+  gap: calc(var(--unit) * 0.5);
+  width: 100%;
+  min-width: 0;
+  /* Shrink before the score does: the score is the thing you glance at. */
+  flex: 0 1 auto;
+}
+
+.draft-side {
+  display: flex;
+  gap: 2px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .draft img {
-  width: calc(var(--unit) * 2.1);
+  /* flex-basis 0 with min-width 0 is what lets them shrink below their
+     intrinsic size; without min-width the flex default of auto pins them to it
+     and the row overflows however narrow the tile gets. */
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
   height: auto;
+  /* Stop portraits ballooning on a tall tile, where width is not the limit. */
+  max-height: calc(var(--unit) * 1.5);
+  object-fit: cover;
   border-radius: 3px;
   background: #0a0c10;
 }
+
 .draft-side.dire { flex-direction: row-reverse; }
 
 .empty {
