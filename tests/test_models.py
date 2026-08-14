@@ -218,3 +218,63 @@ def test_a_game_with_no_scoreboard_has_no_items():
 
     game = parse_live_games(payload, 7)[0]
     assert game.radiant.has_rapier is False
+
+
+# ---- which hero holds it ------------------------------------------------
+# A tile-wide border said "something happened in this game" and was covered by
+# the active-stream outline anyway. Naming the hero is both more useful and puts
+# the mark somewhere nothing else is using.
+
+
+def game_with_hero_items(radiant_players=(), dire_players=()):
+    """radiant_players/dire_players: sequences of (hero_id, [item ids])."""
+    def player(hero_id, items):
+        slots = {f"item{i}": (items[i] if i < len(items) else 0) for i in range(6)}
+        return {"hero_id": hero_id, "net_worth": 100, **slots}
+
+    return {"result": {"games": [{
+        "match_id": 1, "league_id": 7, "spectators": 0,
+        "radiant_team": {"team_name": "R"}, "dire_team": {"team_name": "D"},
+        "scoreboard": {
+            "duration": 600,
+            "radiant": {"score": 1, "players": [player(h, i) for h, i in radiant_players]},
+            "dire": {"score": 2, "players": [player(h, i) for h, i in dire_players]},
+        },
+    }]}}
+
+
+def test_the_rapier_carrier_is_named_by_hero():
+    game = parse_live_games(
+        game_with_hero_items(radiant_players=[(8, []), (74, [RAPIER])]), 7)[0]
+
+    assert game.radiant.rapier_heroes == (74,)
+
+
+def test_two_rapiers_name_both_heroes():
+    """It happens, and both icons should light up."""
+    game = parse_live_games(
+        game_with_hero_items(radiant_players=[(8, [RAPIER]), (74, [RAPIER])]), 7)[0]
+
+    assert set(game.radiant.rapier_heroes) == {8, 74}
+
+
+def test_no_rapier_names_nobody():
+    game = parse_live_games(game_with_hero_items(radiant_players=[(8, [117])]), 7)[0]
+
+    assert game.radiant.rapier_heroes == ()
+
+
+def test_has_rapier_still_follows_the_carriers():
+    game = parse_live_games(
+        game_with_hero_items(dire_players=[(11, [RAPIER])]), 7)[0]
+
+    assert game.dire.has_rapier is True
+    assert game.radiant.has_rapier is False
+
+
+def test_carriers_reach_the_client():
+    game = parse_live_games(
+        game_with_hero_items(radiant_players=[(74, [RAPIER])]), 7)[0]
+
+    # A tuple here; jsonify renders it as a JSON array for the client.
+    assert game.to_dict()["radiant"]["rapier_heroes"] == (74,)

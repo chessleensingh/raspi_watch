@@ -36,14 +36,17 @@ class Side:
     tower_state: int = 0
     barracks_state: int = 0
     items: tuple[int, ...] = ()
-    """Every item id held across this side's five players, all six slots each.
+    """Every item id held across this side's five players, all six slots each."""
+    rapier_heroes: tuple[int, ...] = ()
+    """Hero ids currently holding a Divine Rapier.
 
-    Kept flat because nothing here cares WHO holds a Rapier, only that the game
-    now has one in it."""
+    Kept per hero, not merely as a flag, so the mark can go on that hero's
+    portrait in the draft rather than on the whole tile -- where it competed
+    with the active-stream outline and said only "something happened here"."""
 
     @property
     def has_rapier(self) -> bool:
-        return RAPIER_ITEM_ID in self.items
+        return bool(self.rapier_heroes)
 
     @property
     def has_aegis(self) -> bool:
@@ -126,6 +129,11 @@ def _parse_side(game: dict, board: dict | None, side: str) -> Side:
             item for p in players
             for item in (p.get(f"item{slot}") or 0 for slot in range(6))
             if item
+        ),
+        rapier_heroes=tuple(
+            p["hero_id"] for p in players
+            if p.get("hero_id")
+            and any(p.get(f"item{slot}") == RAPIER_ITEM_ID for slot in range(6))
         ),
     )
 

@@ -95,13 +95,17 @@ function gold(n) {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
 
-function heroImg(heroId) {
+function heroImg(heroId, carrying = false) {
   const hero = state.heroes[String(heroId)];
   const img = document.createElement("img");
   img.src = hero ? hero.icon : "";
   img.alt = hero ? hero.name : `hero ${heroId}`;
   img.title = img.alt;
   img.loading = "lazy";
+  if (carrying) {
+    img.classList.add("rapier");
+    img.title = `${img.alt} - DIVINE RAPIER`;
+  }
   // A missing portrait must not leave a broken-image glyph on the tile.
   img.addEventListener("error", () => img.remove());
   return img;
@@ -113,7 +117,10 @@ function heroImg(heroId) {
 function draftColumn(game, side) {
   const box = document.createElement("div");
   box.className = `draft-side ${side}`;
-  for (const heroId of game[side].picks) box.appendChild(heroImg(heroId));
+  const carriers = game[side].rapier_heroes || [];
+  for (const heroId of game[side].picks) {
+    box.appendChild(heroImg(heroId, carriers.includes(heroId)));
+  }
   return box;
 }
 
@@ -217,13 +224,13 @@ async function selectStream(index, node) {
   }
 }
 
-/* Rapier beats Aegis when a game has both.
-   An Aegis drops every Roshan and is routine; a Rapier is the game turning over
-   on one item, and that is the tile you want to be looking at. */
+/* The tile border is the LAST resort for a Rapier, not the first.
+   The marks belong on the thing they describe -- the carrier's portrait, the
+   holding team's name -- but the portraits only exist while Drafts is on, so
+   with drafts hidden a Rapier would otherwise go unannounced entirely. */
 function alertClass(game) {
-  if (game.radiant.has_rapier || game.dire.has_rapier) return " rapier";
-  if (game.radiant.has_aegis || game.dire.has_aegis) return " aegis";
-  return "";
+  if (state.showDrafts) return "";
+  return (game.radiant.has_rapier || game.dire.has_rapier) ? " rapier" : "";
 }
 
 function tile(game, position) {
@@ -260,8 +267,14 @@ function tile(game, position) {
     <div class="series">${game.series_score}</div>
     <div class="team-name dire"></div>`;
   // textContent, not innerHTML: team names are attacker-controllable strings.
-  teams.querySelector(".team-name.radiant").textContent = game.radiant.name;
-  teams.querySelector(".team-name.dire").textContent = game.dire.name;
+  for (const side of ["radiant", "dire"]) {
+    const el = teams.querySelector(`.team-name.${side}`);
+    el.textContent = game[side].name;
+    if (game[side].has_aegis) {
+      el.classList.add("aegis");
+      el.title = `${game[side].name} holds the Aegis`;
+    }
+  }
 
   const score = document.createElement("div");
   score.className = "score";
