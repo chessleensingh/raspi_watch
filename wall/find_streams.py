@@ -20,9 +20,12 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import re
 import shutil
 import subprocess
 import sys
+import tomllib
+from pathlib import Path
 
 DEFAULT_CHANNELS = ["@dota2"]
 
@@ -147,6 +150,80 @@ def probe_twitch(candidates: list[str], timeout: float = 20.0) -> list[str]:
     return live
 
 
+# Slots A-D, which is the order the streams appear in and the order the viewer
+# numbers them.
+SLOTS = ["A", "B", "C", "D"]
+
+
+def english_streams(live: list[dict]) -> tuple[list[str], list[str]]:
+    """Pick the four English streams out of everything live, in slot order.
+
+    Valve broadcasts the same match in several languages and yt-dlp returns them
+    in no useful order, so taking the first four gives a mix of English, Russian
+    and Chinese. The "[EN-A]" prefix on the title is what identifies them.
+    """
+    by_slot: dict[str, dict] = {}
+    for stream in live:
+        match = re.match(r"\[EN-([A-D])\]", stream.get("title", ""))
+        if match:
+            by_slot[match.group(1)] = stream
+
+    urls = [by_slot[s]["url"] if s in by_slot else "" for s in SLOTS]
+    titles = [by_slot[s]["title"] if s in by_slot else "" for s in SLOTS]
+    return urls, titles
+
+
+def _replace_array(lines: list[str], name: str, values: list[str]) -> list[str]:
+    """Swap one `name = [...]` array, leaving every other line alone.
+
+    Line-based on purpose. The regex version of this stopped at the first "]"
+    and spliced the previous day's entries into the middle of the new ones,
+    producing TOML that would not parse -- which shows up on screen as "no
+    streams configured", nowhere near the actual mistake.
+    """
+    # TOML basic strings cannot contain a raw quote or backslash; broadcast
+    # titles are not ours to control, so neutralise both.
+    body = [f'  "{v.replace(chr(92), "/").replace(chr(34), chr(39))}",' for v in values]
+    block = [f"{name} = ["] + body + ["]"]
+
+    out, i, replaced = [], 0, False
+    while i < len(lines):
+        if lines[i].strip().startswith(f"{name} = ["):
+            while i < len(lines) and lines[i].strip() != "]":
+                i += 1
+            i += 1  # step over the closing bracket
+            out.extend(block)
+            replaced = True
+            continue
+        out.append(lines[i])
+        i += 1
+
+    if not replaced:
+        out.extend([""] + block)
+    return out
+
+
+def write_streams_toml(path, urls: list[str], titles: list[str]) -> None:
+    """Update the two arrays in streams.toml, keeping the rest of the file.
+
+    Validates before committing: the file carries the whole day's viewing, and
+    leaving a broken one behind is worse than refusing to write.
+    """
+    original = (path.read_text(encoding="utf-8-sig") if path.exists()
+                else "streams = []")
+    lines = original.splitlines()
+    lines = _replace_array(lines, "streams", urls)
+    lines = _replace_array(lines, "titles", titles)
+    updated = "\n".join(lines) + "\n"
+
+    try:
+        tomllib.loads(updated)
+    except tomllib.TOMLDecodeError as exc:
+        sys.exit(f"refusing to write {path}: the result would not parse ({exc})")
+
+    path.write_text(updated, encoding="utf-8")
+
+
 def print_toml_block(entries: list[str], titles: list[str] | None = None) -> None:
     print("\nPaste this into wall/streams.toml:\n")
     print("streams = [")
@@ -178,6 +255,9 @@ def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("-c", "--channel", action="append", dest="channels",
                         help="YouTube channel (repeatable), e.g. @dota2")
+    parser.add_argument("--write", action="store_true",
+                        help="write the four English streams straight into "
+                             "wall/streams.toml instead of printing them")
     parser.add_argument("--twitch", action="store_true",
                         help="probe Twitch channel names instead of YouTube")
     parser.add_argument("--language", choices=sorted(TWITCH_BY_LANGUAGE),
@@ -199,6 +279,7 @@ def main() -> int:
     channels = args.channels or DEFAULT_CHANNELS
     found: list[str] = []
     found_titles: list[str] = []
+    found_streams: list[dict] = []
 
     for channel in channels:
         print(f"Checking youtube.com/{channel.lstrip('/')}/streams ...")
@@ -212,7 +293,21 @@ def main() -> int:
             print(f"        {printable(stream['title'][:90])}")
             found.append(stream["url"])
             found_titles.append(stream["title"])
+            found_streams.append(stream)
         print()
+
+    if args.write:
+        urls, titles = english_streams(found_streams)
+        if not any(urls):
+            print("No English streams live, so nothing was written.")
+            return 1
+        target = Path(__file__).parent / "streams.toml"
+        write_streams_toml(target, urls, titles)
+        print(f"\nWrote {sum(1 for u in urls if u)} English stream(s) to {target}:")
+        for slot, title in zip(SLOTS, titles):
+            print(f"  {slot}: {printable(title)[:78] if title else '(not live)'}")
+        print("\nPress R on the viewer to pick them up. No restart needed.")
+        return 0
 
     if not found:
         print("No live streams found. TI 2026 group stage runs Aug 13-16.")
