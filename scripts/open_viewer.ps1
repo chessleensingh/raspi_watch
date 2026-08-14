@@ -60,7 +60,8 @@ if (-not $browser) { Write-Error "No Brave, Edge or Chrome found."; exit 1 }
 # --autoplay-policy: without it Chromium blocks the muted autoplay of streams
 # the page has not been interacted with, and all four tiles sit black. Sound
 # still needs the click on the page -- this only allows the silent preload.
-$profileDir = Join-Path $env:LOCALAPPDATA "ti_viewer_profile"
+$profileLeaf = "ti_viewer_profile"
+$profileDir = Join-Path $env:LOCALAPPDATA $profileLeaf
 
 # NOT --start-fullscreen. Chromium fullscreens on whichever display the window
 # manager happened to place the window on, and on a fresh profile that is not
@@ -77,8 +78,14 @@ if (Test-Path $profileDir) {
         Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
 }
 
-$proc = Start-Process $browser -PassThru -ArgumentList @(
-    "--user-data-dir=$profileDir",
+$proc = # NOTE the quotes around the path. This machine's profile directory contains
+# a space, and an unquoted --user-data-dir is split at it: Brave sees a
+# nonsense path, silently falls back to the DEFAULT profile, and hands the URL
+# to whatever Brave is already running. Every symptom of that is misleading --
+# flags ignored, window on the wrong screen, the process untrackable and
+# unkillable by profile -- and none of them point at quoting.
+Start-Process $browser -PassThru -ArgumentList @(
+    "--user-data-dir=`"$profileDir`"",
     "--new-window",
     "--app=http://localhost:$Port/viewer",
     "--window-position=$($b.X),$($b.Y)",
@@ -98,12 +105,22 @@ public class Win {
 "@
 
 # Brave forks; the window belongs to whichever process wins, so poll for it.
+# Find OUR window, not merely the newest one with a title.
+#
+# Picking the newest Brave window is wrong whenever the two launchers run close
+# together: the second one starts while the first window is still the newest, so
+# the scoreboard grabs the VIEWER's window and moves it to the small screen and
+# fullscreens it there. Matching on the profile directory in the command line
+# makes each script only ever touch the window it started.
 $handle = [IntPtr]::Zero
 foreach ($attempt in 1..40) {
     Start-Sleep -Milliseconds 500
-    $window = Get-Process brave -ErrorAction SilentlyContinue |
+    $ourPids = (Get-CimInstance Win32_Process -Filter "Name='brave.exe'" |
+                Where-Object { $_.CommandLine -like "*$profileLeaf*" }).ProcessId
+    if (-not $ourPids) { continue }
+    $window = Get-Process -Id $ourPids -ErrorAction SilentlyContinue |
         Where-Object { $_.MainWindowTitle -and $_.MainWindowHandle -ne 0 } |
-        Sort-Object StartTime -Descending | Select-Object -First 1
+        Select-Object -First 1
     if ($window) { $handle = $window.MainWindowHandle; break }
 }
 

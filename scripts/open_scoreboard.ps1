@@ -56,7 +56,8 @@ if (-not $browser) { Write-Error "No Brave, Edge or Chrome found."; exit 1 }
 # the process that starts, so with a browser already running the window opens
 # from that process and --start-fullscreen is silently ignored. Its own profile
 # directory forces its own process, and keeps this off your everyday browsing.
-$profileDir = Join-Path $env:LOCALAPPDATA "ti_scoreboard_profile"
+$profileLeaf = "ti_scoreboard_profile"
+$profileDir = Join-Path $env:LOCALAPPDATA $profileLeaf
 
 # A browser that was killed rather than closed leaves SingletonLock/Cookie/Socket
 # behind. The next launch sees them, tries to hand the URL to an instance that is
@@ -73,8 +74,14 @@ if (Test-Path $profileDir) {
 # on, which is not reliably the one --window-position asked for. The scoreboard
 # then fullscreens over the main screen, invisible behind the viewer, while
 # still running perfectly -- so it looks like it never opened.
+# NOTE the quotes around the path. This machine's profile directory contains
+# a space, and an unquoted --user-data-dir is split at it: Brave sees a
+# nonsense path, silently falls back to the DEFAULT profile, and hands the URL
+# to whatever Brave is already running. Every symptom of that is misleading --
+# flags ignored, window on the wrong screen, the process untrackable and
+# unkillable by profile -- and none of them point at quoting.
 Start-Process $browser -ArgumentList @(
-    "--user-data-dir=$profileDir",
+    "--user-data-dir=`"$profileDir`"",
     "--new-window",
     "--app=http://localhost:$Port",
     "--window-position=$($b.X),$($b.Y)",
@@ -92,12 +99,22 @@ public class WinSb {
 }
 "@
 
+# Find OUR window, not merely the newest one with a title.
+#
+# Picking the newest Brave window is wrong whenever the two launchers run close
+# together: the second one starts while the first window is still the newest, so
+# the scoreboard grabs the VIEWER's window and moves it to the small screen and
+# fullscreens it there. Matching on the profile directory in the command line
+# makes each script only ever touch the window it started.
 $handle = [IntPtr]::Zero
 foreach ($attempt in 1..40) {
     Start-Sleep -Milliseconds 500
-    $window = Get-Process brave -ErrorAction SilentlyContinue |
+    $ourPids = (Get-CimInstance Win32_Process -Filter "Name='brave.exe'" |
+                Where-Object { $_.CommandLine -like "*$profileLeaf*" }).ProcessId
+    if (-not $ourPids) { continue }
+    $window = Get-Process -Id $ourPids -ErrorAction SilentlyContinue |
         Where-Object { $_.MainWindowTitle -and $_.MainWindowHandle -ne 0 } |
-        Sort-Object StartTime -Descending | Select-Object -First 1
+        Select-Object -First 1
     if ($window) { $handle = $window.MainWindowHandle; break }
 }
 

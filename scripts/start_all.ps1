@@ -81,15 +81,21 @@ foreach ($round in 1..6) {
     Start-Sleep -Seconds 9
     $viewer = (Count-Requests "GET /api/viewer") - $v1
     $board = (Count-Requests "GET /api/games") - $g1
-    if ($viewer -ge 5 -and $board -ge 2) { break }
+    if ($viewer -ge 1 -and $board -ge 2) { break }
     if ($round -lt 6) { Write-Output "  still starting up (viewer $viewer, scoreboard $board)..." }
 }
 
 Write-Output ""
-Write-Output "viewer     : $viewer requests in 9s  $(if ($viewer -ge 5) { 'OK' } else { 'NOT LOADING' })"
+# A live viewer in the foreground polls ~18 per 9s. Behind another window
+# Chromium throttles its timers hard, down to one or two -- still alive, still
+# switching when you click. Only zero means the page never started, so that is
+# the line the check draws. Reporting the rate as well keeps the difference
+# visible rather than hidden behind a verdict.
+$viewerVerdict = if ($viewer -ge 5) { "OK" } elseif ($viewer -ge 1) { "OK (throttled - window is behind another)" } else { "NOT LOADING" }
+Write-Output "viewer     : $viewer requests in 9s  $viewerVerdict"
 Write-Output "scoreboard : $board requests in 9s  $(if ($board -ge 2) { 'OK' } else { 'NOT LOADING' })"
 
-if ($viewer -lt 5 -or $board -lt 2) {
+if ($viewer -lt 1 -or $board -lt 2) {
     Write-Output ""
     Write-Warning "A page is not loading. Re-run with -Restart; if it persists, delete"
     Write-Warning "$env:LOCALAPPDATA\ti_viewer_profile and ti_scoreboard_profile."

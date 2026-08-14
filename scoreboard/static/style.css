@@ -253,43 +253,47 @@ body {
 
 /* ---- draft ---- */
 
-/* Ten portraits have to fit the tile's width, whatever that is.
-   They used to be a fixed 2.1 units each: ten of those is 21 units against a
-   tile about 19 wide, so they always overflowed and the tile's overflow:hidden
-   quietly clipped the last pick or two. Sizing from the space available instead
-   of a constant means the arithmetic cannot come out wrong again. */
-.draft {
-  display: flex;
-  gap: calc(var(--unit) * 0.5);
-  width: 100%;
+/* The tile body: each team's picks flank the score, so a hero column sits
+   directly under the name of the team that picked it.
+   A single row of ten 16:9 portraits was the previous layout and could not
+   work -- ten of them across a ~19-unit tile leaves under 2 units each, and at
+   that width the hero is unrecognisable. Splitting them into two columns of
+   five trades width for height, which the tile has more of. */
+.body {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: calc(var(--unit) * 0.4);
   min-width: 0;
-  /* Shrink before the score does: the score is the thing you glance at. */
-  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.middle {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(var(--unit) * 0.5);
+  min-width: 0;
 }
 
 .draft-side {
   display: flex;
+  flex-direction: column;
   gap: 2px;
-  flex: 1 1 0;
   min-width: 0;
 }
+.draft-side.dire { align-items: flex-end; }
 
-.draft img {
-  /* flex-basis 0 with min-width 0 is what lets them shrink below their
-     intrinsic size; without min-width the flex default of auto pins them to it
-     and the row overflows however narrow the tile gets. */
-  flex: 1 1 0;
-  min-width: 0;
+.draft-side img {
+  /* Sized from HEIGHT, because five stacked portraits are limited by the tile's
+     height, not its width. Width follows the 16:9 aspect, about 1.9 units, so
+     both columns together cost under a fifth of the tile. */
+  height: calc(var(--unit) * 1.05);
   width: auto;
-  height: auto;
-  /* Stop portraits ballooning on a tall tile, where width is not the limit. */
-  max-height: calc(var(--unit) * 1.5);
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 3px;
   background: #0a0c10;
 }
-
-.draft-side.dire { flex-direction: row-reverse; }
 
 .empty {
   grid-column: 1 / -1;

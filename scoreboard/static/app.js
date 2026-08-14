@@ -107,16 +107,14 @@ function heroImg(heroId) {
   return img;
 }
 
-function draftRow(game) {
-  const row = document.createElement("div");
-  row.className = "draft";
-  for (const side of ["radiant", "dire"]) {
-    const box = document.createElement("div");
-    box.className = `draft-side ${side}`;
-    for (const heroId of game[side].picks) box.appendChild(heroImg(heroId));
-    row.appendChild(box);
-  }
-  return row;
+/* One team's picks, stacked vertically to sit under that team's name.
+   Kept as a column rather than a row because a row of ten 16:9 portraits cannot
+   fit a tile's width at a readable size -- see the .draft rules. */
+function draftColumn(game, side) {
+  const box = document.createElement("div");
+  box.className = `draft-side ${side}`;
+  for (const heroId of game[side].picks) box.appendChild(heroImg(heroId));
+  return box;
 }
 
 function networthRow(game) {
@@ -263,8 +261,21 @@ function tile(game, position) {
     <span class="clock">${game.clock}</span>
     <span class="dire">${game.dire.score}</span>`;
 
-  node.append(teams, score, networthRow(game));
-  if (state.showDrafts && game.radiant.picks.length) node.appendChild(draftRow(game));
+  /* Picks flank the score rather than sitting under everything, so each team's
+     heroes line up beneath that team's name and the score keeps the middle. */
+  const body = document.createElement("div");
+  body.className = "body";
+
+  const middle = document.createElement("div");
+  middle.className = "middle";
+  middle.append(score, networthRow(game));
+
+  const drafting = state.showDrafts && game.radiant.picks.length;
+  if (drafting) body.appendChild(draftColumn(game, "radiant"));
+  body.appendChild(middle);
+  if (drafting) body.appendChild(draftColumn(game, "dire"));
+
+  node.append(teams, body);
   return node;
 }
 
