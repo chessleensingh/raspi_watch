@@ -18,6 +18,7 @@ from typing import Any
 # recalled. These two are the moments worth looking up from your phone for.
 RAPIER_ITEM_ID = 133
 AEGIS_ITEM_ID = 117
+SMOKE_ITEM_ID = 188
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,15 @@ class Side:
     @property
     def has_aegis(self) -> bool:
         return AEGIS_ITEM_ID in self.items
+
+    @property
+    def smoke_count(self) -> int:
+        """Smokes of Deceit in this side's inventories.
+
+        Valve publishes no buff data, so a team being smoked cannot be read
+        directly. A smoke LEAVING the inventory is what using one looks like
+        from here, which the server detects by comparing snapshots."""
+        return sum(1 for item in self.items if item == SMOKE_ITEM_ID)
 
 
 @dataclass(frozen=True)

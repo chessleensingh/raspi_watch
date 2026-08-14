@@ -212,14 +212,28 @@ body {
   font-size: calc(var(--unit) * 4.2);
   font-weight: 800;
   line-height: 1;
+  /* Even digit widths, so the number does not jitter sideways as kills tick
+     over -- distracting on something this large. */
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
 }
+
+/* Step down as the numbers get wider. Sized so 2 digits either side plus the
+   clock still fit the middle column with the draft columns flanking it. */
+.score.wide { font-size: calc(var(--unit) * 3.1); }
+.score.huge { font-size: calc(var(--unit) * 2.4); }
+
+/* The digits must be allowed to shrink out of their column rather than push the
+   row wider than the tile, which is what got them clipped. */
+.score .radiant, .score .dire { min-width: 0; overflow: hidden; }
 .score .radiant { color: var(--radiant); text-align: right; }
 .score .dire { color: var(--dire); text-align: left; }
 .score .clock {
   font-size: calc(var(--unit) * 1.15);
   font-weight: 600;
   color: var(--dim);
-  padding: 0 calc(var(--unit) * 0.5);
+  padding: 0 calc(var(--unit) * 0.3);
+  white-space: nowrap;
 }
 
 /* ---- net worth ---- */
@@ -349,4 +363,38 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .draft-side img.rapier, .tile.rapier { animation: none; }
+}
+
+/* Smoke of Deceit: a purple haze over the tile.
+   Inferred, not reported -- Valve publishes no buff data, so this is a smoke
+   leaving a team's inventory between two snapshots. It fades on its own after
+   roughly the duration of the smoke itself, because the server only reports it
+   while the drop is inside its lookback window. */
+.tile.smoked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 60%,
+    rgba(138, 79, 214, 0.32) 0%,
+    rgba(112, 58, 190, 0.18) 45%,
+    rgba(90, 40, 160, 0.05) 75%,
+    transparent 100%);
+  animation: smoke-drift 3.2s ease-in-out infinite;
+}
+
+@keyframes smoke-drift {
+  50% { opacity: 0.55; transform: scale(1.04); }
+}
+
+/* Which team cast it, on the name -- distinct from the Aegis underline. */
+.team-name.smoked {
+  color: #c9a4ff;
+  text-shadow: 0 0 calc(var(--unit) * 0.6) rgba(138, 79, 214, 0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile.smoked::after { animation: none; }
 }

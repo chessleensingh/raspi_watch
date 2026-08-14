@@ -346,3 +346,95 @@ def test_selection_is_validated_against_the_reloaded_list(viewer_app, viewer_cli
 
     assert viewer_client.post("/api/viewer/select/3").status_code == 400
     assert viewer_client.post("/api/viewer/select/1").status_code == 200
+
+
+# ---- smoke detection ----------------------------------------------------
+# Valve publishes no buff data, so "they smoked" cannot be read directly. What
+# CAN be read is Smoke of Deceit leaving a team's inventory, which is what using
+# it does. Comparing the served snapshot against an OLDER one detects that --
+# and it must be older, never newer, or the check would be reading the future
+# and spoiling the very thing it announces.
+
+SMOKE = 188
+
+
+def game_payload(match_id, smokes_radiant, clock=600):
+    def player(items):
+        slots = {f"item{i}": (items[i] if i < len(items) else 0) for i in range(6)}
+        return {"hero_id": 1, "net_worth": 100, **slots}
+
+    return {"result": {"games": [{
+        "match_id": match_id, "league_id": TI_LEAGUE_ID, "spectators": 0,
+        "radiant_team": {"team_name": "R"}, "dire_team": {"team_name": "D"},
+        "scoreboard": {
+            "duration": clock,
+            "radiant": {"score": 1, "players": [player([SMOKE] * smokes_radiant)]},
+            "dire": {"score": 2, "players": [player([])]},
+        },
+    }]}}
+
+
+def seed_at(app, payload, age):
+    app.config["buffer"].append(
+        parse_live_games(payload, league_id=TI_LEAGUE_ID), timestamp=time.time() - age)
+
+
+def test_a_smoke_leaving_the_inventory_is_reported(app, client):
+    seed_at(app, game_payload(1, smokes_radiant=1), age=200)
+    seed_at(app, game_payload(1, smokes_radiant=0), age=120)
+
+    game = client.get("/api/games?delay=120").get_json()["games"][0]
+
+    assert game["radiant"]["smoked"] is True
+    assert game["dire"]["smoked"] is False
+
+
+def test_carrying_a_smoke_without_using_it_is_not_reported(app, client):
+    seed_at(app, game_payload(1, smokes_radiant=1), age=200)
+    seed_at(app, game_payload(1, smokes_radiant=1), age=120)
+
+    game = client.get("/api/games?delay=120").get_json()["games"][0]
+
+    assert game["radiant"]["smoked"] is False
+
+
+def test_buying_a_smoke_is_not_reported(app, client):
+    seed_at(app, game_payload(1, smokes_radiant=0), age=200)
+    seed_at(app, game_payload(1, smokes_radiant=1), age=120)
+
+    assert client.get("/api/games?delay=120").get_json()["games"][0]["radiant"]["smoked"] is False
+
+
+def test_detection_never_reads_newer_than_the_delay_allows(app, client):
+    """The comparison window must sit BEHIND the served snapshot.
+
+    A smoke used after the moment being shown is a fight that has not happened
+    on screen yet -- announcing it is exactly the spoiler this project exists to
+    prevent.
+    """
+    seed_at(app, game_payload(1, smokes_radiant=1), age=200)
+    seed_at(app, game_payload(1, smokes_radiant=1), age=130)
+    seed_at(app, game_payload(1, smokes_radiant=0), age=5)   # the future, at delay=120
+
+    assert client.get("/api/games?delay=120").get_json()["games"][0]["radiant"]["smoked"] is False
+
+
+def test_no_history_yet_reports_no_smoke(app, client):
+    seed_at(app, game_payload(1, smokes_radiant=0), age=120)
+
+    assert client.get("/api/games?delay=120").get_json()["games"][0]["radiant"]["smoked"] is False
+
+
+def test_smoke_lookback_never_exceeds_retention(app, client):
+    """At maximum delay there is no room to look further back.
+
+    The buffer refuses a lookback past its retention, and that refusal used to
+    take the whole /api/games response down with it -- losing the scores to
+    decorate them.
+    """
+    seed_at(app, game_payload(1, smokes_radiant=1), age=200)
+
+    response = client.get("/api/games?delay=99999")
+
+    assert response.status_code == 200
+    assert response.get_json()["delay_seconds"] == 900.0

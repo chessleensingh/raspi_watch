@@ -274,10 +274,24 @@ function tile(game, position) {
       el.classList.add("aegis");
       el.title = `${game[side].name} holds the Aegis`;
     }
+    if (game[side].smoked) {
+      el.classList.add("smoked");
+      el.title = `${game[side].name} just used a Smoke of Deceit`;
+    }
   }
 
+  /* The haze covers the whole tile, because a smoke is about to happen TO
+     someone -- the interesting part is the game, not the team that cast it. */
+  if (game.radiant.smoked || game.dire.smoked) node.classList.add("smoked");
+
   const score = document.createElement("div");
-  score.className = "score";
+  /* Kill counts reach double and occasionally triple figures, and the score is
+     the largest text on the tile -- so the widest case has to set the size, not
+     the common one. Two digits a side plus the clock overflows the middle
+     column between the two draft columns, and the tile's overflow:hidden then
+     clips the dire score, which is the one on the right. */
+  const widest = Math.max(game.radiant.score, game.dire.score);
+  score.className = "score" + (widest >= 100 ? " huge" : widest >= 10 ? " wide" : "");
   score.innerHTML = `
     <span class="radiant">${game.radiant.score}</span>
     <span class="clock">${game.clock}</span>

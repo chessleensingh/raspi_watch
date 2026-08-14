@@ -89,6 +89,50 @@ class Poller(threading.Thread):
             self._stop.wait(wait)
 
 
+# How far back to look for a smoke that has since been used. Smoke of Deceit
+# lasts 35 seconds, so a window near that lights the tile for roughly as long as
+# the smoke is actually up.
+SMOKE_WINDOW_SECONDS = 40.0
+
+
+def smoked_sides(games, buffer, delay_seconds: float, now: float) -> dict:
+    """match_id -> {"radiant": bool, "dire": bool} for smokes just used.
+
+    Returned rather than stamped onto the games: Game is frozen, and keeping
+    this out of the model is right anyway -- whether a smoke was used is a fact
+    about two snapshots, not about either one of them.
+
+    The comparison snapshot is taken FURTHER BACK than the one being served,
+    never nearer to now. Looking forward would announce a gank that has not
+    happened on your screen yet, which is precisely the spoiler this project
+    exists to prevent -- while calling itself a feature.
+    """
+    result = {g.match_id: {"radiant": False, "dire": False} for g in games}
+
+    # At the maximum delay there is no room to look further back -- the buffer
+    # refuses a lookback past its retention, since that snapshot is already
+    # evicted. Losing the smoke flag is the right trade: the delay itself is the
+    # feature this must never break.
+    lookback = min(delay_seconds + SMOKE_WINDOW_SECONDS, buffer.retention_seconds)
+    if lookback <= delay_seconds:
+        return result
+
+    older = buffer.get_delayed(delay_seconds=lookback, now=now)
+    if older.warming_up:
+        return result
+
+    before = {g.match_id: g for g in older.games}
+    for game in games:
+        was = before.get(game.match_id)
+        if not was:
+            continue
+        result[game.match_id] = {
+            "radiant": game.radiant.smoke_count < was.radiant.smoke_count,
+            "dire": game.dire.smoke_count < was.dire.smoke_count,
+        }
+    return result
+
+
 def create_app(config: Config, source=None, heroes: HeroIndex | None = None,
                start_poller: bool = True, streams: list[Stream] | None = None) -> Flask:
     app = Flask(__name__, static_folder=None)
@@ -185,7 +229,9 @@ def create_app(config: Config, source=None, heroes: HeroIndex | None = None,
             return jsonify({"error": "delay must be a number"}), 400
 
         delay = max(0.0, min(delay, config.retention_seconds))
-        result = buffer.get_delayed(delay_seconds=delay, now=time.time())
+        now = time.time()
+        result = buffer.get_delayed(delay_seconds=delay, now=now)
+        smoked = smoked_sides(result.games, buffer, delay, now)
 
         last_success_age = (
             time.time() - poller.last_success if poller.last_success else None
@@ -197,8 +243,15 @@ def create_app(config: Config, source=None, heroes: HeroIndex | None = None,
         reported = [g.stream_delay for g in result.games if g.stream_delay]
         suggested_delay = max(reported) if reported else None
 
+        def with_smoke(game):
+            data = game.to_dict()
+            flags = smoked.get(game.match_id, {})
+            data["radiant"]["smoked"] = flags.get("radiant", False)
+            data["dire"]["smoked"] = flags.get("dire", False)
+            return data
+
         return jsonify({
-            "games": [g.to_dict() for g in result.games],
+            "games": [with_smoke(g) for g in result.games],
             "delay_seconds": delay,
             "suggested_delay": suggested_delay,
             "warming_up": result.warming_up,
