@@ -163,6 +163,33 @@ Measured on this box during round 1: four concurrent 1080p streams cost about
 **11% of a 16-core CPU**, so drift here is not the machine struggling to decode.
 It is how live players behave.
 
+### If the viewer shows "Sign in to confirm you're not a bot"
+
+That is YouTube, not us. The viewer runs in its own profile with no cookies and
+no history, then opens four live embeds at once — a fair description of a bot.
+
+Fix it once:
+
+```powershell
+.\scripts\youtube_signin.ps1     # opens that profile as a normal window
+# sign in to YouTube, close the window, then:
+.\scripts\start_all.ps1 -Restart
+```
+
+It persists, because the profile directory survives restarts. Deleting
+`%LOCALAPPDATA%	i_viewer_profile` undoes it.
+
+If that does not clear it, fall back to Twitch, which has no bot check and whose
+TI channel names are stable for the whole event:
+
+```powershell
+python wallind_streams.py --twitch --write
+```
+
+Then press `R`. The cost is ads baked into the stream, which no client can
+strip, and no titles — so games map to streams by position and a wrong one needs
+a badge click.
+
 ### Sound
 
 The viewer starts **silent**, and there is nothing to fix: browsers only allow

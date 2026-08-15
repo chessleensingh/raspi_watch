@@ -273,6 +273,19 @@ def main() -> int:
         if not live:
             print("\nNothing live. TI 2026 group stage runs Aug 13-16.")
             return 0
+
+        if args.write:
+            target = Path(__file__).parent / "streams.toml"
+            # No titles: a Twitch channel name says nothing about who is playing
+            # on it, so the scoreboard falls back to mapping games by screen
+            # position. Clicking a badge fixes any that land wrong.
+            write_streams_toml(target, live[:4], [""] * min(len(live), 4))
+            print(f"\nWrote {min(len(live), 4)} Twitch channel(s) to {target}.")
+            print("Press R on the viewer to pick them up.")
+            print("\nNote: Twitch injects ads into the stream itself and no client")
+            print("can strip them. This is the fallback, not the plan.")
+            return 0
+
         print_toml_block(live)
         return 0
 

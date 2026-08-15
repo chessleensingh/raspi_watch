@@ -145,3 +145,16 @@ def test_english_streams_are_picked_in_slot_order():
     assert urls == ["u-ena", "", "", "u-end"]
     assert titles[0] == "[EN-A] A vs a"
     assert titles[3] == "[EN-D] D vs d"
+
+
+def test_twitch_channels_can_be_written_as_a_fallback(tmp_path):
+    """YouTube's bot check can lock the viewer out mid-event; Twitch has none,
+    and its TI channel names are stable for the whole tournament."""
+    from scoreboard.streams import load_streams
+    path = toml_with_arrays(tmp_path / "streams.toml")
+
+    write_streams_toml(path, ["dota2ti", "dota2ti_2"], ["", ""])
+
+    streams = load_streams(path)
+    assert streams[0].kind == "twitch"
+    assert streams[0].id == "dota2ti"
