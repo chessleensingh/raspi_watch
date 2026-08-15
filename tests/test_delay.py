@@ -124,3 +124,51 @@ def test_out_of_order_append_is_rejected():
     buf.append(["a"], timestamp=1000.0)
     with pytest.raises(ValueError, match="monotonic"):
         buf.append(["b"], timestamp=999.0)
+
+
+# ---- reading a span of history -----------------------------------------
+# Comparing only the two ends of a window misses anything that rose and fell
+# inside it -- a smoke bought and used between polls reads 0 at both ends.
+
+
+def test_window_returns_snapshots_in_range_oldest_first():
+    buffer = DelayBuffer(retention_seconds=600)
+    for i in range(5):
+        buffer.append(f"snap{i}", timestamp=1000 + i * 10)
+
+    got = buffer.snapshots_between(start=1010, end=1030, now=1040)
+
+    assert [g for _, g in got] == ["snap1", "snap2", "snap3"]
+
+
+def test_window_is_inclusive_at_both_ends():
+    buffer = DelayBuffer(retention_seconds=600)
+    buffer.append("a", timestamp=1000)
+    buffer.append("b", timestamp=1010)
+
+    got = buffer.snapshots_between(start=1000, end=1010, now=1020)
+
+    assert [g for _, g in got] == ["a", "b"]
+
+
+def test_window_with_nothing_in_range_is_empty():
+    buffer = DelayBuffer(retention_seconds=600)
+    buffer.append("a", timestamp=1000)
+
+    assert buffer.snapshots_between(start=1100, end=1200, now=1300) == []
+
+
+def test_window_on_an_empty_buffer_is_empty():
+    assert DelayBuffer(retention_seconds=600).snapshots_between(
+        start=0, end=100, now=100) == []
+
+
+def test_window_never_returns_anything_newer_than_asked_for():
+    """The spoiler guard applies here too: this is history, not a peek ahead."""
+    buffer = DelayBuffer(retention_seconds=600)
+    for i in range(5):
+        buffer.append(f"snap{i}", timestamp=1000 + i * 10)
+
+    got = buffer.snapshots_between(start=1000, end=1020, now=1040)
+
+    assert all(t <= 1020 for t, _ in got)

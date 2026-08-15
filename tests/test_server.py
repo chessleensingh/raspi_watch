@@ -438,3 +438,36 @@ def test_smoke_lookback_never_exceeds_retention(app, client):
 
     assert response.status_code == 200
     assert response.get_json()["delay_seconds"] == 900.0
+
+
+def test_a_smoke_bought_and_used_inside_the_window_is_still_caught(app, client):
+    """The case that was being missed.
+
+    Comparing only the two ends of the window reads zero smokes at both, because
+    the team bought one and used it in between -- which is exactly what teams do
+    with smokes, and why they seemed impossible to catch.
+    """
+    # Both edges of the window read zero: the buy and the use happen strictly
+    # between them, which is the whole point of the case.
+    seed_at(app, game_payload(1, smokes_radiant=0), age=200)
+    seed_at(app, game_payload(1, smokes_radiant=0), age=160)   # window edge: none
+    seed_at(app, game_payload(1, smokes_radiant=1), age=150)   # bought
+    seed_at(app, game_payload(1, smokes_radiant=0), age=135)   # used
+    seed_at(app, game_payload(1, smokes_radiant=0), age=120)   # served: none
+
+    assert client.get("/api/games?delay=120").get_json()["games"][0]["radiant"]["smoked"] is True
+
+
+def test_a_steady_zero_across_the_window_is_not_a_smoke(app, client):
+    for age in (200, 160, 140, 120):
+        seed_at(app, game_payload(1, smokes_radiant=0), age=age)
+
+    assert client.get("/api/games?delay=120").get_json()["games"][0]["radiant"]["smoked"] is False
+
+
+def test_buying_without_using_inside_the_window_is_not_a_smoke(app, client):
+    seed_at(app, game_payload(1, smokes_radiant=0), age=200)
+    seed_at(app, game_payload(1, smokes_radiant=1), age=160)
+    seed_at(app, game_payload(1, smokes_radiant=1), age=120)
+
+    assert client.get("/api/games?delay=120").get_json()["games"][0]["radiant"]["smoked"] is False

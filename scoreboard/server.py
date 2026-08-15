@@ -98,39 +98,59 @@ SMOKE_WINDOW_SECONDS = 40.0
 def smoked_sides(games, buffer, delay_seconds: float, now: float) -> dict:
     """match_id -> {"radiant": bool, "dire": bool} for smokes just used.
 
-    Returned rather than stamped onto the games: Game is frozen, and keeping
-    this out of the model is right anyway -- whether a smoke was used is a fact
-    about two snapshots, not about either one of them.
+    Scans EVERY snapshot in the window, not just its two ends. Teams buy a smoke
+    and use it within seconds, so the count goes 0 -> 1 -> 0 between polls and
+    both ends of the window read zero -- which made most smokes invisible and
+    the few that were caught look like they only happened at the start of a
+    fight. Any drop between consecutive snapshots counts.
 
-    The comparison snapshot is taken FURTHER BACK than the one being served,
-    never nearer to now. Looking forward would announce a gank that has not
-    happened on your screen yet, which is precisely the spoiler this project
-    exists to prevent -- while calling itself a feature.
+    The window sits entirely BEHIND the snapshot being served, never nearer to
+    now. Looking forward would announce a gank that has not happened on your
+    screen yet, which is precisely the spoiler this project exists to prevent --
+    while calling itself a feature.
     """
     result = {g.match_id: {"radiant": False, "dire": False} for g in games}
 
-    # At the maximum delay there is no room to look further back -- the buffer
-    # refuses a lookback past its retention, since that snapshot is already
-    # evicted. Losing the smoke flag is the right trade: the delay itself is the
-    # feature this must never break.
+    # At the maximum delay there is no room to look further back: the buffer
+    # refuses a lookback past its retention, since that snapshot is evicted.
+    # Losing the flag is the right trade -- the delay itself must never break.
     lookback = min(delay_seconds + SMOKE_WINDOW_SECONDS, buffer.retention_seconds)
     if lookback <= delay_seconds:
         return result
 
-    older = buffer.get_delayed(delay_seconds=lookback, now=now)
-    if older.warming_up:
+    end = now - delay_seconds
+    window = buffer.snapshots_between(start=now - lookback, end=end, now=now)
+
+    # Start from the last snapshot BEFORE the window, not the first one inside
+    # it. With a 15s poll and a 40s window there may be only one snapshot in
+    # range, and a window of one has nothing to compare against -- which loses
+    # the plain case of a smoke held across the boundary.
+    baseline = buffer.get_delayed(delay_seconds=lookback, now=now)
+    if not baseline.warming_up:
+        window = [(now - lookback, baseline.games)] + window
+    if len(window) < 2:
         return result
 
-    before = {g.match_id: g for g in older.games}
-    for game in games:
-        was = before.get(game.match_id)
-        if not was:
-            continue
-        result[game.match_id] = {
-            "radiant": game.radiant.smoke_count < was.radiant.smoke_count,
-            "dire": game.dire.smoke_count < was.dire.smoke_count,
-        }
-    return result
+    def counts(snapshot):
+        return {g.match_id: (g.radiant.smoke_count, g.dire.smoke_count)
+                for g in snapshot}
+
+    previous = counts(window[0][1])
+    for _, snapshot in window[1:]:
+        current = counts(snapshot)
+        for match_id, (radiant, dire) in current.items():
+            was = previous.get(match_id)
+            if not was:
+                continue
+            if radiant < was[0]:
+                result.setdefault(match_id, {"radiant": False, "dire": False})["radiant"] = True
+            if dire < was[1]:
+                result.setdefault(match_id, {"radiant": False, "dire": False})["dire"] = True
+        previous = current
+
+    # Only report games actually on screen right now.
+    return {g.match_id: result.get(g.match_id, {"radiant": False, "dire": False})
+            for g in games}
 
 
 def create_app(config: Config, source=None, heroes: HeroIndex | None = None,

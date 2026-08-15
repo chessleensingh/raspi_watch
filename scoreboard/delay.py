@@ -11,7 +11,7 @@ as it was `delay_seconds` ago. Poll cadence and display delay stay independent.
 from __future__ import annotations
 
 import threading
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from collections import deque
 from dataclasses import dataclass
 from typing import Any
@@ -69,6 +69,21 @@ class DelayBuffer:
         while len(self._times) > 1 and self._times[0] < cutoff:
             self._times.popleft()
             self._snapshots.popleft()
+
+    def snapshots_between(self, start: float, end: float, now: float) -> list:
+        """[(timestamp, games)] for snapshots in [start, end], oldest first.
+
+        Exists because comparing only the two ENDS of a window is blind to
+        anything that rose and fell inside it: a smoke bought and used between
+        two polls reads zero at both ends and looks like nothing happened.
+
+        `end` is a wall-clock time the caller has already offset by the display
+        delay, so this returns history and never a peek ahead.
+        """
+        with self._lock:
+            lo = bisect_left(self._times, start)
+            hi = bisect_right(self._times, end)
+            return [(self._times[i], self._snapshots[i]) for i in range(lo, hi)]
 
     def get_delayed(self, delay_seconds: float, now: float) -> DelayedResult:
         if delay_seconds < 0:

@@ -13,7 +13,11 @@ api_key = ""
 league_id = 0
 
 # How often to hit Valve's API. Independent of the display delay below.
-poll_interval_seconds = 15.0
+# 8s rather than 15s because of smoke detection: a smoke is inferred from
+# one leaving a team's inventory, so a smoke bought and used between two
+# polls is never observed at all. Teams routinely smoke within seconds of
+# buying. Raise it if you do not care about the purple haze.
+poll_interval_seconds = 8.0
 
 # THE IMPORTANT ONE. Valve's API is live; the broadcast is 2-5 minutes behind
 # it. Without this the scoreboard spoils every fight before you see it.
