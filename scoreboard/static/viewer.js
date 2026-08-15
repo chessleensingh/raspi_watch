@@ -143,37 +143,70 @@ function makeYouTubePlayer(container, stream) {
 }
 
 function makeTwitchPlayer(container, stream) {
-  const host = document.createElement("div");
-  host.id = `twitch-${stream.index}`;
-  container.appendChild(host);
-
   /* Twitch requires the embedding hostname up front. Taking it from the
-     location means this works at localhost and at the LAN name without a
-     config entry; it fails only under a name Twitch rejects. */
-  const embed = new Twitch.Embed(host.id, {
-    channel: stream.id,
-    parent: [location.hostname],
-    width: "100%",
-    height: "100%",
-    layout: "video",
-    autoplay: true,
-    muted: true,
-  });
+     location means this works at localhost and at the LAN name without a config
+     entry; it fails only under a name Twitch rejects. */
+  const parent = location.hostname;
 
-  let player = null;
-  embed.addEventListener(Twitch.Embed.VIDEO_READY, () => {
-    player = embed.getPlayer();
-    player.setMuted(true);
-  });
+  /* Prefer Twitch's JS API, which can mute without reloading. But it arrives on
+     a third-party script, and Brave Shields blocking exactly that kind of
+     script is what silently broke the YouTube path -- so a plain iframe backs
+     it up rather than the slot going blank. */
+  if (window.Twitch && Twitch.Embed) {
+    const host = document.createElement("div");
+    host.id = `twitch-${stream.index}`;
+    container.appendChild(host);
+
+    const embed = new Twitch.Embed(host.id, {
+      channel: stream.id,
+      parent: [parent],
+      width: "100%",
+      height: "100%",
+      layout: "video",
+      autoplay: true,
+      muted: true,
+    });
+
+    let player = null;
+    embed.addEventListener(Twitch.Embed.VIDEO_READY, () => {
+      player = embed.getPlayer();
+      player.setMuted(true);
+    });
+
+    return {
+      mute: () => player && player.setMuted(true),
+      unmute: () => {
+        if (!player) return;
+        player.setMuted(false);
+        player.setVolume(1);
+      },
+      live: () => {},
+    };
+  }
+
+  /* Scriptless fallback. Mute is a URL parameter here, so changing it means
+     reloading the frame -- which re-buffers. Only the stream being switched TO
+     pays that, and only while unmuting, which is the right place to spend it in
+     a fallback path. */
+  const frame = document.createElement("iframe");
+  const src = (muted) =>
+    `https://player.twitch.tv/?channel=${encodeURIComponent(stream.id)}` +
+    `&parent=${encodeURIComponent(parent)}&autoplay=true&muted=${muted}`;
+  frame.src = src(true);
+  frame.allow = "autoplay; fullscreen";
+  frame.setAttribute("frameborder", "0");
+  container.appendChild(frame);
+
+  let isMuted = true;
+  const setMuted = (muted) => {
+    if (muted === isMuted) return;
+    isMuted = muted;
+    frame.src = src(muted);
+  };
 
   return {
-    mute: () => player && player.setMuted(true),
-    unmute: () => {
-      if (!player) return;
-      player.setMuted(false);
-      player.setVolume(1);
-    },
-    // Twitch's embed has no live-edge seek; its own player handles catch-up.
+    mute: () => setMuted(true),
+    unmute: () => setMuted(false),
     live: () => {},
   };
 }
