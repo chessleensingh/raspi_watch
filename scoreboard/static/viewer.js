@@ -218,50 +218,97 @@ function makeEmptyPlayer(container, stream) {
   return { mute: () => {}, unmute: () => {}, live: () => {} };
 }
 
-async function buildPlayers(streams) {
-  const kinds = new Set(streams.map((s) => s.kind));
+/* How many players may be alive at once.
+ *
+ * Four simultaneous live YouTube embeds from one profile is what triggers
+ * "Sign in to confirm you're not a bot" -- and being signed in does not help,
+ * because the pattern is the problem, not the identity. Keeping two alive is
+ * the compromise: bouncing between the game you are watching and the last one
+ * stays instant, and a jump to a third costs one buffer.
+ *
+ * Set ?preload=4 to go back to all of them, or ?preload=1 to look as ordinary
+ * as possible. */
+const MAX_LOADED = (() => {
+  const asked = Number(new URLSearchParams(location.search).get("preload"));
+  return Number.isFinite(asked) && asked >= 1 ? asked : 2;
+})();
 
-  /* YouTube needs no script at all -- see makeYouTubePlayer. Twitch still does,
-     and it is the fallback path, so a failure to load it must not take the
-     whole page down when the configured streams are all YouTube. */
-  if (kinds.has("twitch")) {
-    try {
-      await loadScript("https://embed.twitch.tv/embed/v1.js");
-    } catch (err) {
-      toast("Twitch embeds unavailable; those slots will stay blank", true);
-    }
-  }
+/* Least-recently-shown first, so the eviction victim is the stream you are
+   least likely to want back. */
+const loadOrder = [];
 
-  for (const stream of streams) {
-    const container = document.createElement("div");
-    container.className = "player";
-    container.dataset.index = stream.index;
-    el.stack.appendChild(container);
-
-    /* One player that refuses to build must not cost you the other three, nor
-       stop the page from starting its poll loop. That failure mode -- an
-       exception here leaving the viewer alive but deaf to the scoreboard -- is
-       worse than a blank slot, because nothing on screen explains it. */
-    let player;
-    try {
-      if (stream.kind === "youtube") player = makeYouTubePlayer(container, stream);
-      else if (stream.kind === "twitch") player = makeTwitchPlayer(container, stream);
-      else player = makeEmptyPlayer(container, stream);
-    } catch (err) {
-      container.classList.add("empty");
-      container.textContent = `stream ${stream.index + 1} failed to load`;
-      player = { mute: () => {}, unmute: () => {}, live: () => {} };
-      toast(`stream ${stream.index + 1}: ${err.message}`, true);
-    }
-
-    state.players.set(stream.index, player);
+async function ensureTwitchScript(streams) {
+  if (!streams.some((s) => s.kind === "twitch")) return;
+  if (window.Twitch) return;
+  try {
+    await loadScript("https://embed.twitch.tv/embed/v1.js");
+  } catch {
+    // Handled by makeTwitchPlayer's scriptless fallback.
   }
 }
 
-function show(index) {
+function buildOne(stream) {
+  const container = document.createElement("div");
+  container.className = "player";
+  container.dataset.index = stream.index;
+  el.stack.appendChild(container);
+
+  /* One player that refuses to build must not cost you the others, nor stop the
+     page from polling. That failure -- viewer alive but deaf to the scoreboard
+     -- is worse than a blank slot, because nothing on screen explains it. */
+  let player;
+  try {
+    if (stream.kind === "youtube") player = makeYouTubePlayer(container, stream);
+    else if (stream.kind === "twitch") player = makeTwitchPlayer(container, stream);
+    else player = makeEmptyPlayer(container, stream);
+  } catch (err) {
+    container.classList.add("empty");
+    container.textContent = `stream ${stream.index + 1} failed to load`;
+    player = { mute: () => {}, unmute: () => {}, live: () => {} };
+    toast(`stream ${stream.index + 1}: ${err.message}`, true);
+  }
+
+  player.container = container;
+  state.players.set(stream.index, player);
+  return player;
+}
+
+function evictBeyondLimit(keepIndex) {
+  while (loadOrder.length > MAX_LOADED) {
+    const victim = loadOrder.shift();
+    if (victim === keepIndex) { loadOrder.push(victim); continue; }
+    const player = state.players.get(victim);
+    if (!player) continue;
+    // Removing the element is what actually stops the stream; muting alone
+    // leaves it downloading, which is the part YouTube objects to.
+    player.container?.remove();
+    state.players.delete(victim);
+  }
+}
+
+async function ensureLoaded(index) {
+  const stream = state.streams[index];
+  if (!stream) return null;
+
+  let player = state.players.get(index);
+  if (!player) {
+    await ensureTwitchScript([stream]);
+    player = buildOne(stream);
+  }
+
+  const at = loadOrder.indexOf(index);
+  if (at !== -1) loadOrder.splice(at, 1);
+  loadOrder.push(index);
+  evictBeyondLimit(index);
+  return player;
+}
+
+async function show(index) {
   if (index === state.showing) return;
   const stream = state.streams[index];
   if (!stream) return;
+
+  await ensureLoaded(index);
 
   document.querySelectorAll(".player").forEach((node) =>
     node.classList.toggle("showing", Number(node.dataset.index) === index));
@@ -359,14 +406,15 @@ async function reloadStreams() {
 
     el.stack.replaceChildren();
     state.players.clear();
+    loadOrder.length = 0;
     state.showing = null;
 
-    await buildPlayers(state.streams);
+    await ensureTwitchScript(state.streams);
     if (!state.streams.length) {
       setLabel("no streams configured");
       return;
     }
-    show(data.selected ?? 0);
+    await show(data.selected ?? 0);
     toast(`reloaded ${data.count} stream(s)`);
   } catch (err) {
     toast(`reload failed: ${err.message}`, true);
@@ -420,14 +468,8 @@ async function start() {
     return;
   }
 
-  try {
-    await buildPlayers(state.streams);
-  } catch (err) {
-    toast(err.message, true);
-    return;
-  }
-
-  show(0);
+  await ensureTwitchScript(state.streams);
+  await show(0);
   // Only offer sound once there is something to hear.
   el.unmute.hidden = false;
   setInterval(poll, POLL_MS);
