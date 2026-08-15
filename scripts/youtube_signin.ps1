@@ -1,47 +1,57 @@
-# Opens the VIEWER's browser profile as a normal window, so you can sign in to
-# YouTube once.
+# Signs the VIEWER's browser profile in to YouTube, and CONFIRMS it stuck.
 #
 #   .\scripts\youtube_signin.ps1
 #
-# Why this is needed: the viewer runs in its own throwaway-looking profile with
-# no cookies and no history, and then opens four live embeds at once. That is a
-# good description of a bot, and YouTube answers it with "Sign in to confirm
-# you're not a bot" instead of video.
+# Why this is needed: the viewer runs in its own profile with no cookies and no
+# history, then opens four live embeds at once. That is a fair description of a
+# bot, and YouTube answers it with "Sign in to confirm you're not a bot" where
+# the video should be.
 #
-# Signing in here fixes it for good, because the profile directory persists --
-# start_all.ps1 -Restart only stops processes, it does not delete profiles.
-# Deleting C:\Users\<you>\AppData\Local\ti_viewer_profile undoes this.
-#
-# Nothing about this touches your everyday browser: it is a separate profile
-# that only the viewer uses.
+# Why it did not stick the first time: Chromium writes cookies on a CLEAN
+# shutdown, and the restart script was force-killing the browser. A sign-in made
+# minutes earlier was discarded before it ever reached disk, which is invisible
+# -- you sign in, it works, and the next launch has never heard of you. This
+# script watches the cookie file and tells you when the sign-in is actually
+# safe, rather than leaving you to guess.
 
 param(
     [string]$Browser = "",
-    [string]$Url = "https://www.youtube.com/"
+    [string]$Url = "https://www.youtube.com/",
+    [int]$WaitMinutes = 10
 )
 
 $profileLeaf = "ti_viewer_profile"
 $profileDir = Join-Path $env:LOCALAPPDATA $profileLeaf
+$cookieFile = Join-Path $profileDir "Default\Network\Cookies"
 
-# The viewer holds the profile lock while running; a second instance against the
-# same directory would be handed to it and open nothing useful.
-$running = Get-CimInstance Win32_Process -Filter "Name='brave.exe'" |
-    Where-Object { $_.CommandLine -like "*$profileLeaf*" }
+function Get-ViewerProcesses {
+    Get-CimInstance Win32_Process -Filter "Name='brave.exe'" |
+        Where-Object { $_.CommandLine -like "*$profileLeaf*" }
+}
+
+# The viewer holds this profile's lock while running, so a second launch against
+# it would just be handed to the running instance.
+$running = Get-ViewerProcesses
 if ($running) {
     Write-Output "Closing the viewer first (it holds this profile)..."
-    $running | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-    foreach ($i in 1..20) {
-        Start-Sleep -Seconds 1
-        $left = (Get-CimInstance Win32_Process -Filter "Name='brave.exe'" |
-                 Where-Object { $_.CommandLine -like "*$profileLeaf*" } | Measure-Object).Count
-        if ($left -eq 0) { break }
+    foreach ($p in $running) {
+        $h = Get-Process -Id $p.ProcessId -ErrorAction SilentlyContinue
+        if ($h -and $h.MainWindowHandle -ne 0) { $null = $h.CloseMainWindow() }
     }
+    foreach ($i in 1..15) {
+        Start-Sleep -Seconds 1
+        if (-not (Get-ViewerProcesses)) { break }
+    }
+    Get-ViewerProcesses | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Seconds 2
 }
 
 if (Test-Path $profileDir) {
     Get-ChildItem -Path $profileDir -Filter "Singleton*" -Force -ErrorAction SilentlyContinue |
         Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
 }
+
+$before = if (Test-Path $cookieFile) { (Get-Item $cookieFile).LastWriteTime } else { [datetime]::MinValue }
 
 $candidates = @(
     "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
@@ -53,10 +63,10 @@ if ($Browser) { $candidates = @($Browser) + $candidates }
 $browser = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 if (-not $browser) { Write-Error "No Brave, Edge or Chrome found."; exit 1 }
 
-# A normal window, not --app: you need the address bar and the sign-in flow.
-# Quoted path -- this profile directory sits under a home directory containing a
-# space, and unquoted it is split, silently falling back to the default profile
-# and signing you in to the wrong one entirely.
+# A normal window, not --app: the sign-in flow needs an address bar and tabs.
+# The path is quoted because this profile lives under a home directory with a
+# space in it, and unquoted it splits -- silently signing in to the DEFAULT
+# profile instead, which looks like the sign-in simply never worked.
 Start-Process $browser -ArgumentList @(
     "--user-data-dir=`"$profileDir`"",
     "--new-window",
@@ -66,9 +76,36 @@ Start-Process $browser -ArgumentList @(
 )
 
 Write-Output ""
-Write-Output "A normal browser window is opening on the viewer's profile."
-Write-Output "  1. Sign in to YouTube (or just browse a video for a minute)."
-Write-Output "  2. Close that window."
-Write-Output "  3. Run:  .\scripts\start_all.ps1 -Restart"
+Write-Output "A normal browser window is opening on the VIEWER's profile."
+Write-Output "  1. Sign in to YouTube."
+Write-Output "  2. Play any video for a few seconds, so YouTube sets its cookies."
+Write-Output "  3. CLOSE THE WINDOW NORMALLY (Alt+F4 or the X). Do not leave it open."
 Write-Output ""
-Write-Output "The sign-in persists; it only goes away if the profile directory is deleted."
+Write-Output "Waiting for the cookies to be written to disk..."
+
+$deadline = (Get-Date).AddMinutes($WaitMinutes)
+$confirmed = $false
+while ((Get-Date) -lt $deadline) {
+    Start-Sleep -Seconds 5
+    if (Test-Path $cookieFile) {
+        $now = (Get-Item $cookieFile).LastWriteTime
+        # Only counts once the browser has exited: cookies live in memory until
+        # a clean shutdown flushes them, so a newer timestamp while it is still
+        # running proves nothing about what survives.
+        if ($now -gt $before -and -not (Get-ViewerProcesses)) {
+            $confirmed = $true
+            break
+        }
+    }
+}
+
+Write-Output ""
+if ($confirmed) {
+    Write-Output "CONFIRMED: cookies written at $((Get-Item $cookieFile).LastWriteTime)."
+    Write-Output "The sign-in will survive restarts. Now run:"
+    Write-Output "    .\scripts\start_all.ps1 -Restart"
+} else {
+    Write-Warning "Not confirmed. Either the window is still open, or nothing was saved."
+    Write-Warning "Close the browser window normally and re-run this script to check."
+    exit 1
+}

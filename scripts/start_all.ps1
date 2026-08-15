@@ -23,6 +23,37 @@ function Get-ServerPid {
     (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue).OwningProcess
 }
 
+function Stop-BrowsersGracefully($patterns) {
+    # CloseMainWindow, not Stop-Process -Force.
+    #
+    # Chromium writes cookies to disk on a CLEAN shutdown. Force-killing it
+    # discards whatever is still in memory -- which silently threw away a
+    # YouTube sign-in made minutes earlier, and made the bot check look
+    # unfixable. Force is still the fallback, because a hung browser must not
+    # block a restart during a match.
+    $procs = Get-CimInstance Win32_Process -Filter "Name='brave.exe'" |
+        Where-Object { $cl = $_.CommandLine; $patterns | Where-Object { $cl -like "*$_*" } }
+    if (-not $procs) { return }
+
+    foreach ($p in $procs) {
+        $handle = Get-Process -Id $p.ProcessId -ErrorAction SilentlyContinue
+        if ($handle -and $handle.MainWindowHandle -ne 0) { $null = $handle.CloseMainWindow() }
+    }
+
+    foreach ($i in 1..12) {
+        Start-Sleep -Seconds 1
+        $left = (Get-CimInstance Win32_Process -Filter "Name='brave.exe'" |
+                 Where-Object { $cl = $_.CommandLine; $patterns | Where-Object { $cl -like "*$_*" } } |
+                 Measure-Object).Count
+        if ($left -eq 0) { return }
+    }
+
+    Get-CimInstance Win32_Process -Filter "Name='brave.exe'" |
+        Where-Object { $cl = $_.CommandLine; $patterns | Where-Object { $cl -like "*$_*" } } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Seconds 2
+}
+
 function Count-Requests($pattern) {
     if (-not (Test-Path $log)) { return 0 }
     (Get-Content $log -ErrorAction SilentlyContinue | Select-String $pattern | Measure-Object).Count
@@ -31,18 +62,9 @@ function Count-Requests($pattern) {
 if ($Restart) {
     $existing = Get-ServerPid
     if ($existing) { Stop-Process -Id $existing -Force; Write-Output "stopped server $existing" }
-    Get-CimInstance Win32_Process -Filter "Name='brave.exe'" |
-        Where-Object { $_.CommandLine -like "*ti_viewer_profile*" -or $_.CommandLine -like "*ti_scoreboard_profile*" } |
-        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-    # Wait for the browser to actually exit. Relaunching while it is still
-    # shutting down leaves a fresh lock behind and the next window loads nothing.
-    foreach ($i in 1..20) {
-        Start-Sleep -Seconds 1
-        $left = (Get-CimInstance Win32_Process -Filter "Name='brave.exe'" |
-                 Where-Object { $_.CommandLine -like "*ti_viewer_profile*" -or $_.CommandLine -like "*ti_scoreboard_profile*" } |
-                 Measure-Object).Count
-        if ($left -eq 0) { break }
-    }
+    # Closes cleanly and waits. Relaunching while the browser is still shutting
+    # down leaves a fresh lock behind and the next window loads nothing.
+    Stop-BrowsersGracefully @("ti_viewer_profile", "ti_scoreboard_profile")
 }
 
 if (-not (Get-ServerPid)) {
