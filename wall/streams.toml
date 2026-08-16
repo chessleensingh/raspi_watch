@@ -35,17 +35,17 @@
 #
 # and paste what it prints over the four entries below.
 streams = [
-  "dota2ti",
-  "dota2ti_2",
-  "dota2ti_3",
-  "dota2ti_4",
+  "https://www.youtube.com/watch?v=SYzqkT76GkQ",
+  "",
+  "",
+  "",
 ]
 
 # The broadcast titles, in the same order. These are what let the
 # scoreboard work out which stream a game is on: Valve's payload names
 # no stream, but the title names both teams. Printed by find_streams.py.
 titles = [
-  "",
+  "[EN-A] Team Falcons vs. Vici Gaming - The International 2026 - Group Stage - Elimination Round",
   "",
   "",
   "",

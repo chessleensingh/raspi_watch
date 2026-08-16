@@ -9,7 +9,16 @@
 param(
     [int]$Port = 8000,
     [int]$Display = 0,
-    [string]$Browser = ""
+    [string]$Browser = "",
+    # Cookie stores are encrypted per browser: a profile signed in with Brave is
+    # not readable by Chrome, which then launches signed OUT while looking
+    # identical. So the profile has to follow the browser.
+    #
+    # The name is historical -- this directory started as a throwaway test of
+    # whether a plain watch page would play. It is the one that carries the
+    # working YouTube sign-in, and renaming it risks the sign-in it exists for,
+    # so it keeps the awkward name.
+    [string]$Profile = "ti_watchtest_profile"
 )
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -35,11 +44,18 @@ if ($Display -gt 0) {
 }
 $b = $screen.Bounds
 
+# Chrome FIRST here, unlike the scoreboard.
+#
+# YouTube refuses to play these live streams in Brave even with that profile
+# signed in -- presumably its fingerprinting defences -- while the same streams
+# play in signed-in Chrome. The scoreboard loads no third-party video and stays
+# on Brave quite happily.
 $candidates = @(
-    "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
-    "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\Application\brave.exe",
+    "C:\Program Files\Google\Chrome\Application\chrome.exe",
+    "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
     "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-    "C:\Program Files\Google\Chrome\Application\chrome.exe"
+    "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+    "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\Application\brave.exe"
 )
 if ($Browser) { $candidates = @($Browser) + $candidates }
 
@@ -60,7 +76,7 @@ if (-not $browser) { Write-Error "No Brave, Edge or Chrome found."; exit 1 }
 # --autoplay-policy: without it Chromium blocks the muted autoplay of streams
 # the page has not been interacted with, and all four tiles sit black. Sound
 # still needs the click on the page -- this only allows the silent preload.
-$profileLeaf = "ti_viewer_profile"
+$profileLeaf = $Profile
 $profileDir = Join-Path $env:LOCALAPPDATA $profileLeaf
 
 # NOT --start-fullscreen. Chromium fullscreens on whichever display the window
@@ -115,7 +131,8 @@ public class Win {
 $handle = [IntPtr]::Zero
 foreach ($attempt in 1..40) {
     Start-Sleep -Milliseconds 500
-    $ourPids = (Get-CimInstance Win32_Process -Filter "Name='brave.exe'" |
+    $ourPids = (Get-CimInstance Win32_Process |
+                Where-Object { $_.Name -in @("brave.exe", "chrome.exe", "msedge.exe") } |
                 Where-Object { $_.CommandLine -like "*$profileLeaf*" }).ProcessId
     if (-not $ourPids) { continue }
     $window = Get-Process -Id $ourPids -ErrorAction SilentlyContinue |
