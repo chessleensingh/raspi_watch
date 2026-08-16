@@ -10,6 +10,14 @@ const DELAY_STEP = 15;
 const MAX_DELAY = 900;
 
 function storedDelay() {
+  /* ?delay=120 preloads it, alongside ?drafts=1 -- for opening the page in a
+     known state for a screenshare, a kiosk, or a screenshot, without hunting
+     for the right buttons first. */
+  const asked = new URLSearchParams(location.search).get("delay");
+  if (asked !== null && asked.trim() !== "" && Number.isFinite(Number(asked))) {
+    return clampDelay(Number(asked));
+  }
+
   /* null means "no choice saved in this browser yet" - the first request omits
      the delay parameter so the server's configured default applies, and we
      adopt whatever it returns. Hardcoding 120 here made

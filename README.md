@@ -15,6 +15,29 @@ on the TV/projector and nothing here touches it.
 
 TI 2026 group stage: **Aug 13–16**. Main event: **Aug 20–23**.
 
+![The scoreboard on the small screen](docs/screenshots/scoreboard.png)
+
+Four games, `Drafts` on, and the three things worth looking up for, one per tile:
+
+| Tile | Mark | Means |
+|---|---|---|
+| Team Falcons vs LGD | red outline on a hero portrait | that hero is carrying a **Divine Rapier** |
+| Nigma Galaxy vs Iron Wing | gold underline on a team name | that team holds the **Aegis** |
+| BoomBoys vs OG | purple haze, purple team name | that team just used a **Smoke of Deceit** |
+| Team Resilience vs TEAM VISION | nothing | an ordinary game, for contrast |
+
+The `2:00` top-left is the spoiler guard: every tile is showing the game as it
+was two minutes ago, which is where the broadcast is. The marks obey it too — a
+border lights up when the item reaches *your* screen, not when Valve's API sees
+it, so an alert cannot spoil the moment it exists to announce.
+
+That is `--demo`, so the scores are invented; the layout, the marks and the
+delay are the real thing:
+
+```powershell
+.\scripts\start_all.ps1 -Restart -Demo
+```
+
 ---
 
 ## The one thing to understand
