@@ -66,10 +66,9 @@ def printable(text: str, encoding: str | None = None) -> str:
 def yt_dlp_command() -> list[str]:
     """How to invoke yt-dlp here, as an argv prefix.
 
-    On the Mac it is a Homebrew binary on PATH. On Windows `pip install yt-dlp`
-    drops yt-dlp.exe into a Scripts directory that frequently is not on PATH,
-    so fall back to running the installed module through this interpreter --
-    which is the same package, just reached differently.
+    `pip install yt-dlp` drops yt-dlp.exe into a Scripts directory that
+    frequently is not on PATH, so fall back to running the installed module
+    through this interpreter -- the same package, reached differently.
     """
     found = shutil.which("yt-dlp")
     if found:
@@ -127,7 +126,7 @@ def find_youtube_live(channel: str, timeout: float = 90.0) -> list[dict]:
 
 def probe_twitch(candidates: list[str], timeout: float = 20.0) -> list[str]:
     """Which candidate Twitch channels are actually live."""
-    streamlink = shutil.which("streamlink") or "/usr/local/bin/streamlink"
+    streamlink = shutil.which("streamlink") or "streamlink"
     live = []
     for name in candidates:
         try:

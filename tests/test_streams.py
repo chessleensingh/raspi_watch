@@ -1,7 +1,7 @@
 """Tests for resolving streams.toml entries into browser-embeddable descriptors.
 
-The viewer runs in a browser, so it needs concrete video IDs and channel names --
-not the mpv/streamlink targets wall.py consumes from the same file.
+The viewer runs in a browser, so it needs concrete video IDs and channel names,
+which is a stricter requirement than the URLs a person would paste in.
 """
 
 import pytest

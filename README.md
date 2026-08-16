@@ -4,14 +4,12 @@ Watch the TI streams with a live scoreboard that does **not** spoil fights befor
 you see them, and switch the main screen between games by tapping them on a
 second screen.
 
-Everything below runs on **this Windows box**. The Mac plays one permanent stream
-on the TV/projector and nothing here touches it.
+Everything runs on one Windows box across two screens.
 
-| Piece | Runs on | Shows |
+| Piece | Screen | Shows |
 |---|---|---|
-| **Main stream** | the Mac → TV/projector | one stream, started by hand. Not driven by this repo. |
-| **Viewer** (`/viewer`) | this box → main screen | whichever game you clicked, switched instantly |
-| **Scoreboard** (`/`) | this box → small table screen | live scores for every game, held behind the broadcast |
+| **Viewer** (`/viewer`) | main | whichever game you clicked, switched instantly |
+| **Scoreboard** (`/`) | small table screen | live scores for every game, held behind the broadcast |
 
 TI 2026 group stage: **Aug 13–16**. Main event: **Aug 20–23**.
 
@@ -220,9 +218,6 @@ autoplay when muted, and only a click on the viewer window itself can turn sound
 on. So it asks once — click anywhere on the main screen — and from then on audio
 follows whatever you click on the scoreboard.
 
-Set the Mac's volume by hand to whatever you want alongside it. Nothing
-coordinates the two.
-
 ### Viewer keys
 
 | Key | Button | Does |
@@ -279,45 +274,6 @@ matter more than the video.
 
 ---
 
-## Optional: the 2x2 wall on the Mac
-
-`wall/wall.py` tiles four streams 2x2 on the Mac with instant audio switching.
-It is **not part of the setup above** and nothing drives it remotely; it's kept
-as the fallback if you'd rather have the four-up wall on the projector than one
-stream. Run it in a Terminal on the Mac (hotkeys need a real terminal, and the
-windows need a real desktop session — a plain non-interactive ssh command won't
-do):
-
-```sh
-brew install mpv yt-dlp streamlink        # one-time
-cd ~/raspi_watch && /usr/local/bin/python3.12 wall/wall.py
-```
-
-Keys: `1`–`4` move audio, `5` fullscreens the tile with audio, `r` respawns dead
-tiles, `q` quits. Flags: `--list-displays`, `--dry-run`, `--screen N`.
-
-Notes, all learned the hard way:
-
-- **Use `/usr/local/bin/python3.12`.** The Mac's default `python3` is 3.7, which
-  has no `tomllib`.
-- Display auto-detection prefers an **external** display over the MacBook's own
-  panel. Retina panels are converted to logical points — using their advertised
-  pixel count puts three of the four tiles off-screen.
-- YouTube tiles pass `--ytdl-raw-options=no-live-from-start=` so they open at
-  the live edge. The opposite spelling makes yt-dlp build an EDL of DVR
-  segments that mpv cannot open, and every tile dies ~4s in and respawns
-  forever.
-- macOS **display mirroring** collapses the panel and the TV into a single
-  screen, so `--screen=1` stops existing. The wall detects this and falls back
-  to `--screen=0`; use Extended Display to drive the TV on its own.
-- Fans too loud? Measured on 2026-08-11: four tiles hold the Mac at a 29–41%
-  `CPU_Speed_Limit`, and **720p does not help** — same floor, it just takes ~4
-  minutes to get there instead of under 1. It runs fine throttled (0 respawns,
-  0 dropped frames over 47 minutes). If you change quality anyway, YouTube tiles
-  read `ytdl_format` and Twitch tiles read `quality`.
-
----
-
 ## Tests
 
 ```powershell
@@ -349,14 +305,12 @@ scoreboard/
   server.py      Flask app + background poller + the viewer selection
   static/        the scoreboard and the viewer (no build step, no framework)
 wall/
-  streams.toml   the four streams (read by the viewer AND the optional wall)
-  find_streams.py  the daily stream-ID hunt — run this on Windows
-  wall.py        the optional 2x2 Mac wall
+  streams.toml     the four streams, and their broadcast titles
+  find_streams.py  the daily stream hunt; --write updates streams.toml
 scripts/
   find_league.py       discover TI's league id
   open_scoreboard.ps1  scoreboard, fullscreen, second screen
   open_viewer.ps1      viewer, fullscreen, main screen
-  sync_to_mac.ps1      push to the Mac (only needed for the optional wall)
 ```
 
 ## Why the Pi isn't in this

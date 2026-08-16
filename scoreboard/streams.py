@@ -1,14 +1,12 @@
 """Turns wall/streams.toml entries into something a browser can embed.
 
-One stream list, two consumers with different needs. wall.py hands entries to
-mpv and streamlink, which happily take a channel page URL and resolve it
-themselves. The viewer is a browser, and an embed needs a concrete video ID --
-so the "@channel/live" form, which mpv accepts, cannot be embedded at all and
-degrades to an empty slot here.
+The viewer is a browser, and an embed needs a concrete video id -- so the
+"@channel/live" form, which resolves to a different video every day, cannot be
+embedded at all and degrades to an empty slot here.
 
-This module deliberately imports nothing from wall/: that package carries
-macOS-only concerns (system_profiler, mpv IPC sockets) and must not be dragged
-into the Windows-side server. It only reads the file.
+(The directory is called wall/ for historical reasons: this started as a 2x2
+video wall driven from a second machine. That half is gone; the stream list
+stayed where it was rather than breaking every path that points at it.)
 """
 
 from __future__ import annotations
@@ -52,7 +50,7 @@ def _resolve(entry: str, index: int, title: str = "") -> Stream:
                       title=title)
 
     if not entry.startswith("http"):
-        # Matches wall.py's convention: a bare name is a Twitch channel.
+        # A bare name is a Twitch channel.
         return Stream(index=index, kind="twitch", id=entry,
                       label=f"twitch.tv/{entry}", title=title)
 
