@@ -119,6 +119,17 @@ working screen until you try to use it. So the script counts requests: a live
 viewer polls about twice a second, a live scoreboard once every three. It prints
 OK or NOT LOADING for each rather than leaving you to find out mid-match.
 
+Shut it down with:
+
+```powershell
+.\scripts\stop_all.ps1
+```
+
+That closes the windows rather than killing them, which matters: Chromium writes
+cookies on a clean shutdown, and force-killing it once discarded a working
+YouTube sign-in — the browser looked signed in, and the next launch had never
+heard of it.
+
 The two halves can still be run separately:
 
 ```powershell
